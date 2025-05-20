@@ -1,3 +1,7 @@
+// Package queuemanager implements a Traefik middleware plugin that manages
+// access to services by implementing a queue when capacity is reached.
+// It functions similar to a virtual waiting room, allowing a controlled number
+// of users to access the service while placing others in a structured queue.
 package queuemanager
 
 import (
@@ -134,29 +138,29 @@ func (qm *QueueManager) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		log.Printf("[Queue Manager] Active sessions: %d, Max entries: %d", len(qm.activeSessionIDs), qm.config.MaxEntries)
 	}
 
-	// Check if client is already in active sessions
-	if qm.activeSessionIDs[clientID] {
-		// Update last seen timestamp
-		if session, found := qm.cache.Get(clientID); found {
-			sessionData, ok := session.(Session)
-			if !ok {
-				if qm.config.Debug {
-					log.Printf("[Queue Manager] Error: Failed to convert session to Session type")
-				}
-			} else {
-				sessionData.LastSeen = time.Now()
-				qm.cache.Set(clientID, sessionData, cache.DefaultExpiration)
-			}
-		}
-		
-		// Allow access
+	// Check if the client can proceed directly
+	if qm.canClientProceed(clientID) {
 		qm.next.ServeHTTP(rw, req)
 		return
 	}
 
-	// If there's room for more active sessions, add this client
+	// Handle client that needs to wait
+	position := qm.placeClientInQueue(clientID)
+
+	// Serve queue page
+	qm.serveQueuePage(rw, position)
+}
+
+// canClientProceed checks if a client can proceed without waiting.
+func (qm *QueueManager) canClientProceed(clientID string) bool {
+	// If client is in active sessions, update timestamp and proceed
+	if qm.activeSessionIDs[clientID] {
+		qm.updateClientTimestamp(clientID)
+		return true
+	}
+
+	// If there's room for more active sessions, add client and proceed
 	if len(qm.activeSessionIDs) < qm.config.MaxEntries {
-		// Create new session
 		session := Session{
 			ID:        clientID,
 			CreatedAt: time.Now(),
@@ -164,17 +168,34 @@ func (qm *QueueManager) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 			Position:  0,
 		}
 		
-		// Add to active sessions
 		qm.activeSessionIDs[clientID] = true
 		qm.cache.Set(clientID, session, cache.DefaultExpiration)
-		
-		// Allow access
-		qm.next.ServeHTTP(rw, req)
-		return
+		return true
 	}
 
-	// At this point, we know the client needs to wait
-	// Let's check if they're already in the queue
+	// No capacity available
+	return false
+}
+
+// updateClientTimestamp updates the last seen timestamp for a client.
+func (qm *QueueManager) updateClientTimestamp(clientID string) {
+	if session, found := qm.cache.Get(clientID); found {
+		sessionData, ok := session.(Session)
+		if !ok {
+			if qm.config.Debug {
+				log.Printf("[Queue Manager] Error: Failed to convert session to Session type")
+			}
+			return
+		}
+		
+		sessionData.LastSeen = time.Now()
+		qm.cache.Set(clientID, sessionData, cache.DefaultExpiration)
+	}
+}
+
+// placeClientInQueue places a client in the waiting queue and returns their position.
+func (qm *QueueManager) placeClientInQueue(clientID string) int {
+	// Check if they're already in the queue
 	position := -1
 	for i, session := range qm.queue {
 		if session.ID == clientID {
@@ -197,20 +218,9 @@ func (qm *QueueManager) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	}
 
 	// Update last seen timestamp
-	if session, found := qm.cache.Get(clientID); found {
-		sessionData, ok := session.(Session)
-		if !ok {
-			if qm.config.Debug {
-				log.Printf("[Queue Manager] Error: Failed to convert session to Session type")
-			}
-		} else {
-			sessionData.LastSeen = time.Now()
-			qm.cache.Set(clientID, sessionData, cache.DefaultExpiration)
-		}
-	}
-
-	// Serve queue page
-	qm.serveQueuePage(rw, position)
+	qm.updateClientTimestamp(clientID)
+	
+	return position
 }
 
 // getClientID generates or retrieves a unique client identifier.
@@ -310,6 +320,20 @@ func getClientIP(req *http.Request) string {
 
 // serveQueuePage serves the queue page HTML.
 func (qm *QueueManager) serveQueuePage(rw http.ResponseWriter, position int) {
+	// Prepare template data
+	data := qm.prepareQueuePageData(position)
+	
+	// Try to use the template file
+	if qm.serveCustomTemplate(rw, data) {
+		return
+	}
+	
+	// Fall back to the default template
+	qm.serveFallbackTemplate(rw, data)
+}
+
+// prepareQueuePageData creates the data structure for the queue page template.
+func (qm *QueueManager) prepareQueuePageData(position int) QueuePageData {
 	// Calculate estimated wait time (rough estimate: 30 seconds per position)
 	estimatedWaitTime := int(math.Ceil(float64(position) * 0.5)) // in minutes
 	
@@ -319,8 +343,7 @@ func (qm *QueueManager) serveQueuePage(rw http.ResponseWriter, position int) {
 		progressPercentage = int(100 - (float64(position) / float64(len(qm.queue)) * 100))
 	}
 	
-	// Prepare template data
-	data := QueuePageData{
+	return QueuePageData{
 		Position:           position + 1, // 1-based position for users
 		QueueSize:          len(qm.queue),
 		EstimatedWaitTime:  estimatedWaitTime,
@@ -328,31 +351,46 @@ func (qm *QueueManager) serveQueuePage(rw http.ResponseWriter, position int) {
 		ProgressPercentage: progressPercentage,
 		Message:            "Please wait while we process your request.",
 	}
-	
-	// Try to use the template file
-	if fileExists(qm.config.QueuePageFile) {
-		content, err := os.ReadFile(qm.config.QueuePageFile)
-		if err == nil {
-			queueTemplate, parseErr := template.New("QueuePage").Delims("[[", "]]").Parse(string(content))
-			if parseErr == nil {
-				// Set content type
-				rw.Header().Set("Content-Type", qm.config.HTTPContentType)
-				rw.WriteHeader(qm.config.HTTPResponseCode)
-				
-				// Execute template
-				if execErr := queueTemplate.Execute(rw, data); execErr != nil && qm.config.Debug {
-					log.Printf("[Queue Manager] Error executing template: %v", execErr)
-				}
-				return
-			} else if qm.config.Debug {
-				log.Printf("[Queue Manager] Error parsing template: %v", parseErr)
-			}
-		} else if qm.config.Debug {
-			log.Printf("[Queue Manager] Error reading template file: %v", err)
-		}
+}
+
+// serveCustomTemplate attempts to serve the custom queue page template.
+// Returns true if successful, false if the template could not be served.
+func (qm *QueueManager) serveCustomTemplate(rw http.ResponseWriter, data QueuePageData) bool {
+	if !fileExists(qm.config.QueuePageFile) {
+		return false
 	}
 	
-	// Fall back to a simple built-in template if there's an issue with the file
+	content, err := os.ReadFile(qm.config.QueuePageFile)
+	if err != nil {
+		if qm.config.Debug {
+			log.Printf("[Queue Manager] Error reading template file: %v", err)
+		}
+		return false
+	}
+	
+	queueTemplate, parseErr := template.New("QueuePage").Delims("[[", "]]").Parse(string(content))
+	if parseErr != nil {
+		if qm.config.Debug {
+			log.Printf("[Queue Manager] Error parsing template: %v", parseErr)
+		}
+		return false
+	}
+	
+	// Set content type
+	rw.Header().Set("Content-Type", qm.config.HTTPContentType)
+	rw.WriteHeader(qm.config.HTTPResponseCode)
+	
+	// Execute template
+	if execErr := queueTemplate.Execute(rw, data); execErr != nil && qm.config.Debug {
+		log.Printf("[Queue Manager] Error executing template: %v", execErr)
+		return false
+	}
+	
+	return true
+}
+
+// serveFallbackTemplate serves the built-in default queue page template.
+func (qm *QueueManager) serveFallbackTemplate(rw http.ResponseWriter, data QueuePageData) {
 	fallbackTemplate := `<!DOCTYPE html>
 <html>
 <head>

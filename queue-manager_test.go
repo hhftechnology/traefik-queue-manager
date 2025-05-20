@@ -1,9 +1,11 @@
+// Package queuemanager provides a Traefik middleware to control traffic flow
+// by implementing a queue system similar to a virtual waiting room.
 package queuemanager
 
 import (
 	"net/http"
-	"testing"
 	"os"
+	"testing"
 )
 
 func TestGenerateUniqueID(t *testing.T) {
@@ -130,10 +132,19 @@ func TestGetClientIP(t *testing.T) {
 func TestFileExists(t *testing.T) {
 	// Create a temporary file
 	tempFile := "temp_test_file.txt"
-	if _, err := os.Create(tempFile); err != nil {
+	f, err := os.Create(tempFile)
+	if err != nil {
 		t.Fatalf("Failed to create temporary file: %v", err)
 	}
-	defer os.Remove(tempFile)
+	f.Close()
+	
+	// Clean up after the test
+	defer func() {
+		err := os.Remove(tempFile)
+		if err != nil {
+			t.Logf("Warning: Failed to remove temporary file: %v", err)
+		}
+	}()
 	
 	// Test that the file exists
 	if !fileExists(tempFile) {
