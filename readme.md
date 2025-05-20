@@ -1,6 +1,25 @@
-# Traefik Queue Manager Middleware Plugin
+<div align="center" width="100%">
+    <h1>Traefik Queue Manager Middleware Plugin for Traefik v3</h1>
+    <img width="auto" src=".assets/banner.png">
+    <a target="_blank" href="https://GitHub.com/hhftechnology/traefik-queue-manager/graphs/contributors/"><img src="https://img.shields.io/github/contributors/hhftechnology/traefik-queue-manager.svg" /></a><br>
+    <a target="_blank" href="https://GitHub.com/hhftechnology/traefik-queue-manager/commits/"><img src="https://img.shields.io/github/last-commit/hhftechnology/traefik-queue-manager.svg" /></a>
+    <a target="_blank" href="https://GitHub.com/hhftechnology/traefik-queue-manager/issues/"><img src="https://img.shields.io/github/issues/hhftechnology/traefik-queue-manager.svg" /></a>
+    <a target="_blank" href="https://github.com/hhftechnology/traefik-queue-manager/issues?q=is%3Aissue+is%3Aclosed"><img src="https://img.shields.io/github/issues-closed/hhftechnology/traefik-queue-manager.svg" /></a><br>
+        <a target="_blank" href="https://github.com/hhftechnology/traefik-queue-manager/stargazers"><img src="https://img.shields.io/github/stars/hhftechnology/traefik-queue-manager.svg?style=social&label=Star" /></a>
+    <a target="_blank" href="https://github.com/hhftechnology/traefik-queue-manager/network/members"><img src="https://img.shields.io/github/forks/hhftechnology/traefik-queue-manager.svg?style=social&label=Fork" /></a>
+    <a target="_blank" href="https://github.com/hhftechnology/traefik-queue-manager/watchers"><img src="https://img.shields.io/github/watchers/hhftechnology/traefik-queue-manager.svg?style=social&label=Watch" /></a><br>
+</div>
 
-A Traefik middleware plugin that implements a queue management system for your services, helping to manage traffic spikes by limiting the number of concurrent users and providing a fair waiting experience.
+<div align="center" width="100%">
+    <p>A Traefik middleware plugin that implements a queue management system for your services, helping to manage traffic spikes by limiting the number of concurrent users and providing a fair waiting experience.</p>
+    <a target="_blank" href="https://github.com/hhftechnology/traefik-queue-manager"><img src="https://img.shields.io/badge/maintainer-hhftechnology-orange" /></a>
+</div>
+
+## 📝 Forums
+
+[See the forums for further discussion here](https://forum.hhf.technology/)
+Make Traefik a powerful static file server!
+
 
 ## How It Works
 
