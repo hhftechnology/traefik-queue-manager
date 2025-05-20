@@ -14,6 +14,7 @@ import (
 	"io"
 	"log"
 	"math"
+	"net" // Added net import
 	"net/http"
 	"os"
 	"strings"
@@ -127,6 +128,9 @@ type QueueManager struct {
 	// Cleanup routine
 	cleanupTicker *time.Ticker
 	stopCleanup   chan bool // Channel to signal the cleanup goroutine to stop
+
+	// Log file handle if a log file is used
+	logFileHandle *os.File
 }
 
 // logf provides leveled logging for the plugin.
@@ -162,7 +166,6 @@ func (qm *QueueManager) logf(level string, format string, v ...interface{}) {
 		}
 	}
 
-
 	if shouldLog {
 		qm.logger.Printf(logPrefix+strings.ToUpper(level)+": "+format, v...)
 	}
@@ -189,6 +192,7 @@ func New(_ context.Context, next http.Handler, config *Config, name string) (htt
 		stopCleanup:          make(chan bool),
 		inactivityTimeoutDur: time.Duration(config.InactivityTimeoutSeconds) * time.Second,
 		cleanupIntervalDur:   time.Duration(config.CleanupIntervalSeconds) * time.Second,
+		logFileHandle:        logFileHandle, // Store the file handle
 	}
 
 	if config.HardSessionLimitSeconds > 0 {
@@ -216,14 +220,6 @@ func New(_ context.Context, next http.Handler, config *Config, name string) (htt
 	if config.Debug {
 		qm.logf("debug", "Full configuration: %+v", config)
 	}
-	
-	// If a log file was opened, defer its closure (though plugin stop lifecycle isn't guaranteed by Traefik)
-	if logFileHandle != nil {
-		// This defer might not execute if Traefik exits abruptly.
-		// For long-running plugins, a more robust stop mechanism would be needed if Traefik provided it.
-		// defer logFileHandle.Close() // Cannot defer here, as New returns. See Stop() method.
-	}
-
 
 	return qm, nil
 }
@@ -559,7 +555,7 @@ func getClientIP(req *http.Request) string {
 	if xrip != "" {
 		return strings.TrimSpace(xrip)
 	}
-	
+
 	// 3. Fly-Client-IP: Header used by Fly.io
 	flyIP := req.Header.Get("Fly-Client-IP")
 	if flyIP != "" {
@@ -571,15 +567,15 @@ func getClientIP(req *http.Request) string {
 	if cfIP != "" {
 		return strings.TrimSpace(cfIP)
 	}
-	
+
 	// 5. Fallback to RemoteAddr: This might be the IP of the immediate upstream proxy.
 	// RemoteAddr is typically in "ip:port" format.
 	remoteAddr := req.RemoteAddr
-	host, _, err := net.SplitHostPort(remoteAddr)
+	host, _, err := net.SplitHostPort(remoteAddr) // net is not imported, need to import "net"
 	if err == nil && host != "" {
 		return host
 	}
-	
+
 	// If SplitHostPort fails (e.g. RemoteAddr is just an IP), return RemoteAddr as is.
 	return remoteAddr
 }
@@ -640,7 +636,6 @@ func (qm *QueueManager) prepareQueuePageData(positionInQueue int) QueuePageData 
 		estimatedWaitTime = qm.config.MinWaitTimeMinutes
 	}
 
-
 	// Calculate progress percentage
 	progressPercentage := 0
 	if queueSize > 0 {
@@ -660,9 +655,12 @@ func (qm *QueueManager) prepareQueuePageData(positionInQueue int) QueuePageData 
 		progressPercentage = 99 // Almost there
 	}
 	// Clamp percentage
-	if progressPercentage > 100 { progressPercentage = 100 }
-	if progressPercentage < 0 { progressPercentage = 0 }
-
+	if progressPercentage > 100 {
+		progressPercentage = 100
+	}
+	if progressPercentage < 0 {
+		progressPercentage = 0
+	}
 
 	var debugInfo string
 	if qm.config.Debug {
@@ -788,18 +786,17 @@ func (qm *QueueManager) CleanupExpiredSessions() {
 		qm.cache.Set(promotedClientSession.ID, promotedClientSession, qm.inactivityTimeoutDur)
 		promotedCount++
 	}
-	
+
 	// 4. After promotions, re-index positions for the remaining items in the queue
 	for i := range qm.queue {
 		qm.queue[i].Position = i
 		// Optionally update cache for these items if position is critical there,
 		// but it's mainly for display from this function's perspective.
 		if s, found := qm.getSessionFromCache(qm.queue[i].ID); found {
-		    s.Position = i
-		    qm.cache.Set(s.ID, s, qm.inactivityTimeoutDur) // Keep it fresh in cache
+			s.Position = i
+			qm.cache.Set(s.ID, s, qm.inactivityTimeoutDur) // Keep it fresh in cache
 		}
 	}
-
 
 	if removedActiveCount > 0 || removedQueueCount > 0 || promotedCount > 0 {
 		qm.logf("info", "Cleanup results: Removed Active: %d, Removed Queued: %d, Promoted: %d. Current State -> Active: %d, Queue: %d",
@@ -871,18 +868,15 @@ func (qm *QueueManager) Stop() {
 		qm.logf("debug", "Cache cleanup routine signaled to stop.")
 	}
 
-	// Close log file if it was opened
-	if qm.logger != nil {
-		if closer, ok := qm.logger.Writer().(io.Closer); ok {
-			// Check if it's os.Stderr before trying to close, to avoid closing stderr.
-			// This check is a bit tricky as logger.Writer() returns io.Writer.
-			// A simpler way is to store the file handle if one was opened.
-			// Assuming setupLogOutput returns the file handle if used:
-			// if qm.logFileHandle != nil { qm.logFileHandle.Close() }
-			// For now, this is a placeholder as direct access to the file handle from here isn't set up.
-			// If the writer is a file, it should be closed.
-			// This requires qm to store the file handle if it opens one.
+	// Close log file if it was opened and stored
+	if qm.logFileHandle != nil {
+		qm.logf("info", "Closing log file: %s", qm.config.LogFile)
+		err := qm.logFileHandle.Close()
+		if err != nil {
+			// Log to stderr if log file closing fails, as qm.logger might be using the file.
+			log.Printf(logPrefix+"ERROR: Failed to close log file %s: %v", qm.config.LogFile, err)
 		}
+		qm.logFileHandle = nil // Avoid double closing
 	}
 	qm.logf("info", "QueueManager plugin has been signaled to stop.")
 }

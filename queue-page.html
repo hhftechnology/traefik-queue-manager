@@ -3,137 +3,187 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Queue - Please Wait</title>
+    <title>Service Queue - Please Wait</title>
     
-    <!-- Primary refresh mechanism -->
-    <meta http-equiv="refresh" content="[[.RefreshInterval]];url=./">
-    
-    <!-- Strong cache control -->
-    <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate, max-age=0">
+    <meta http-equiv="refresh" content="[[.RefreshInterval]];url=./"> <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate, max-age=0, s-maxage=0">
     <meta http-equiv="Pragma" content="no-cache">
-    <meta http-equiv="Expires" content="0">
-    
-    <style>
+    <meta http-equiv="Expires" content="0"> <style>
         body {
-            font-family: 'Segoe UI', Arial, sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
             margin: 0;
-            padding: 0;
+            padding: 20px;
             display: flex;
+            flex-direction: column;
             justify-content: center;
             align-items: center;
             min-height: 100vh;
-            background-color: #f5f5f5;
+            background-color: #f0f2f5; /* Light grey background */
+            color: #333;
+            text-align: center;
+            box-sizing: border-box;
         }
         .container {
             max-width: 600px;
             width: 100%;
             background: white;
-            padding: 30px;
-            border-radius: 10px;
-            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
-            text-align: center;
+            padding: 30px 40px; /* More padding */
+            border-radius: 12px; /* Softer corners */
+            box-shadow: 0 8px 25px rgba(0,0,0,0.1); /* More pronounced shadow */
         }
         h1 {
-            color: #2c3e50;
+            color: #1a2b4d; /* Darker blue */
             margin-bottom: 20px;
+            font-size: 1.8em; /* Slightly larger heading */
+        }
+        p {
+            line-height: 1.6;
+            color: #555;
+            margin-bottom: 15px;
         }
         .progress-container {
             width: 100%;
-            background-color: #e9ecef;
-            border-radius: 10px;
-            margin: 25px 0;
+            background-color: #e9ecef; /* Lighter grey for progress track */
+            border-radius: 8px; /* Rounded corners for progress track */
+            margin: 30px 0;
+            overflow: hidden; /* Ensures progress bar stays within bounds */
         }
         .progress-bar {
-            height: 20px;
-            background: linear-gradient(90deg, #4caf50, #8bc34a);
-            border-radius: 10px;
+            height: 28px; /* Taller progress bar */
+            width: [[.ProgressPercentage]]%; /* Dynamically set width */
+            background: linear-gradient(90deg, #007bff, #0056b3); /* Blue gradient */
+            border-radius: 8px; /* Match container's rounding */
             text-align: center;
             color: white;
-            line-height: 20px;
+            font-weight: bold;
+            line-height: 28px; /* Vertically center text */
+            transition: width 0.5s ease-in-out; /* Smooth width transition */
+            white-space: nowrap; /* Prevent text wrapping */
         }
         .info-grid {
             display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 15px;
-            margin: 20px 0;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); /* Responsive columns */
+            gap: 20px; /* Increased gap */
+            margin: 25px 0;
         }
         .info-box {
-            background-color: #f0f4f8;
-            padding: 15px;
+            background-color: #f8f9fa; /* Very light grey for info boxes */
+            padding: 20px; /* More padding */
             border-radius: 8px;
-            border-left: 4px solid #3498db;
+            border-left: 5px solid #007bff; /* Blue accent border */
             text-align: left;
         }
-        .countdown {
-            margin-top: 20px;
-            color: #666;
-            font-weight: bold;
+        .info-box strong {
+            display: block;
+            margin-bottom: 8px; /* More space below strong text */
+            color: #1a2b4d;
+            font-size: 1.1em;
         }
+        .info-box p {
+            margin-bottom: 0;
+            font-size: 1.2em; /* Larger text for values */
+            color: #0056b3;
+        }
+        .countdown-message {
+            margin-top: 25px;
+            color: #666;
+            font-weight: 500; /* Medium weight */
+        }
+        .debug-info {
+            margin-top: 30px;
+            padding: 15px;
+            background-color: #e9ecef;
+            border-radius: 8px;
+            text-align: left;
+            font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, Courier, monospace;
+            font-size: 0.8em;
+            color: #444;
+            word-break: break-all;
+            display: [[if .DebugInfo]]block[[else]]none[[end]]; /* Conditional display */
+        }
+        .debug-info pre {
+             white-space: pre-wrap; /* Allow wrapping for long debug lines */
+        }
+
+        /* Spinner animation */
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #007bff;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>You're in the queue</h1>
-        <p>Our service is currently experiencing high demand. You've been placed in a queue and will be automatically redirected when it's your turn.</p>
+        <div class="spinner"></div> <h1>You're in the Queue</h1>
+        <p>Our services are currently experiencing high demand. Your patience is appreciated. You will be automatically redirected when it's your turn.</p>
         
         <div class="progress-container">
-            <div class="progress-bar" style="width: [[.ProgressPercentage]]%;">[[.ProgressPercentage]]%</div>
+            <div class="progress-bar">[[.ProgressPercentage]]%</div>
         </div>
         
         <div class="info-grid">
             <div class="info-box">
-                <h3>Your position</h3>
-                <p><strong>[[.Position]]</strong> of [[.QueueSize]]</p>
+                <strong>Your Position</strong>
+                <p>[[.Position]] / [[.QueueSize]]</p>
             </div>
             <div class="info-box">
-                <h3>Estimated wait time</h3>
-                <p><strong>[[.EstimatedWaitTime]]</strong> minutes</p>
+                <strong>Estimated Wait Time</strong>
+                <p>~[[.EstimatedWaitTime]] min(s)</p>
             </div>
         </div>
         
         <p>[[.Message]]</p>
         
-        <div id="countdown" class="countdown">
-            This page will automatically refresh in [[.RefreshInterval]] seconds.
+        <div class="countdown-message">
+            This page will automatically refresh in <strong id="countdown">[[.RefreshInterval]]</strong> seconds.
+        </div>
+
+        <div class="debug-info">
+            <strong>Debug Information:</strong>
+            <pre>[[.DebugInfo]]</pre>
         </div>
     </div>
 
-    <!-- Improved multi-layered JavaScript refresh mechanism -->
     <script>
         document.addEventListener('DOMContentLoaded', function() {
-            // Countdown timer
-            let countdown = [[.RefreshInterval]];
+            let countdownSeconds = parseInt("[[.RefreshInterval]]", 10);
             const countdownElement = document.getElementById('countdown');
             
-            function updateCountdown() {
-                countdown--;
-                if (countdown <= 0) {
-                    // Clean refresh to base path
-                    window.location.href = window.location.pathname;
-                    return;
+            if (countdownElement) {
+                function updateCountdown() {
+                    countdownSeconds--;
+                    countdownElement.textContent = countdownSeconds;
+                    if (countdownSeconds <= 0) {
+                        // Force a cache-bypassing reload to the same path.
+                        // Adding a timestamp query parameter is a common way to bypass cache.
+                        const cleanUrl = window.location.pathname;
+                        window.location.href = cleanUrl + (cleanUrl.includes('?') ? '&' : '?') + 't=' + new Date().getTime();
+                        // As a simpler fallback if the above causes issues, use:
+                        // window.location.reload(true); 
+                    }
                 }
-                countdownElement.innerText = `This page will automatically refresh in ${countdown} seconds.`;
+                // Initial call to set the value, then interval
+                if (countdownSeconds > 0) {
+                     countdownElement.textContent = countdownSeconds;
+                     setInterval(updateCountdown, 1000);
+                }
             }
-            
-            // Update countdown every second
-            const timer = setInterval(updateCountdown, 1000);
-            
-            // Three-layer refresh mechanism
-            
-            // Method 1: Basic reload with cache bypass
+
+            // Fallback refresh mechanism in case meta refresh fails (e.g., some browser extensions)
+            // This will trigger slightly before the meta refresh.
             setTimeout(function() {
-                window.location.reload(true);
-            }, [[.RefreshInterval]] * 900); // 90% of refresh interval
-            
-            // Method 2: Full location replace with clean URL
-            setTimeout(function() {
-                window.location.replace(window.location.pathname);
-            }, [[.RefreshInterval]] * 950); // 95% of refresh interval
-            
-            // Method 3: Direct assignment to clean location
-            setTimeout(function() {
-                window.location = window.location.pathname;
-            }, [[.RefreshInterval]] * 1000); // 100% of refresh interval
+                const cleanUrl = window.location.pathname;
+                window.location.href = cleanUrl + (cleanUrl.includes('?') ? '&' : '?') + 't_fallback=' + new Date().getTime();
+            }, (parseInt("[[.RefreshInterval]]", 10) -1) * 1000); // 1 second before meta refresh
         });
     </script>
 </body>
