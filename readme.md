@@ -64,8 +64,8 @@ experimental:
 |--------|------|---------|-------------|
 | `enabled` | boolean | `true` | Enable/disable the queue manager |
 | `queuePageFile` | string | `queue-page.html` | Path to the queue page HTML template |
-| `sessionTime` | duration | `1m` | Duration for which a visitor session is valid |
-| `purgeTime` | duration | `5m` | How often expired sessions are purged from cache |
+| `sessionTime` | duration | `60` | Duration for which a visitor session is valid |
+| `purgeTime` | duration | `300` | How often expired sessions are purged from cache |
 | `maxEntries` | int | `100` | Maximum number of concurrent users allowed |
 | `httpResponseCode` | int | `429` | HTTP response code for queue page |
 | `httpContentType` | string | `text/html; charset=utf-8` | Content type of queue page |
