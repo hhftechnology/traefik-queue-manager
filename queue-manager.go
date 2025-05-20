@@ -228,10 +228,25 @@ func (qm *QueueManager) getClientID(rw http.ResponseWriter, req *http.Request) (
 
 // generateUniqueID creates a unique identifier for a client
 func generateUniqueID(req *http.Request) string {
-	// Create unique ID based on current time, remote IP, and some randomness
+	// Create unique ID based on current time, remote IP, and cryptographic randomness
 	timestamp := time.Now().UnixNano()
 	clientIP := getClientIP(req)
-	return fmt.Sprintf("%d-%s-%d", timestamp, clientIP, timestamp%1000)
+	
+	// Add randomness to ensure uniqueness
+	randBytes := make([]byte, 8)
+	for i := range randBytes {
+		randBytes[i] = byte(timestamp % 256)
+		timestamp /= 256
+	}
+	
+	// Create a hash from the random bytes
+	hasher := md5.New()
+	hasher.Write(randBytes)
+	hasher.Write([]byte(clientIP))
+	randHash := hex.EncodeToString(hasher.Sum(nil))[:12]
+	
+	// Format: timestamp-ip-randomhash
+	return fmt.Sprintf("%d-%s-%s", time.Now().UnixNano(), clientIP, randHash)
 }
 
 // generateClientHash creates a hash from client attributes
