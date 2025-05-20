@@ -641,6 +641,8 @@ func (qm *QueueManager) prepareQueuePageData(positionInQueue int) QueuePageData 
 	if queueSize > 0 {
 		if positionInQueue >= queueSize { // Should not happen if pos is 0-based from len(queue)
 			progressPercentage = 1 // At least 1% if considered in queue but pos is off
+		} else if queueSize == 1 && positionInQueue == 0 { // Special case: Only one in queue
+			progressPercentage = 50 // Arbitrary: in queue, but you're next, show 50%
 		} else {
 			// Progress: (queueSize - (positionInQueue+1)) / queueSize * 100
 			// Example: 5 in queue, you are pos 0 (1st). Progress: (5-1)/5 = 80%
