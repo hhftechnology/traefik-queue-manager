@@ -408,9 +408,9 @@ func (qm *QueueManager) serveQueuePage(rw http.ResponseWriter, req *http.Request
 	data := qm.prepareQueuePageData(position)
 	
 	// Set cache control headers to prevent caching
-	rw.Header().Set("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0")
+	rw.Header().Set("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0, post-check=0, pre-check=0")
 	rw.Header().Set("Pragma", "no-cache")
-	rw.Header().Set("Expires", "0")
+	rw.Header().Set("Expires", "Thu, 01 Jan 1970 00:00:00 GMT")
 	
 	// Try to use the template file
 	if qm.serveCustomTemplate(rw, data) {
