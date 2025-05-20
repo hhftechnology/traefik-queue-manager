@@ -20,6 +20,7 @@
 [See the forums for further discussion here](https://forum.hhf.technology/)
 Make Traefik a powerful static file server!
 
+<img width="auto" src=".assets/test_image.png">
 
 ## How It Works
 
