@@ -264,7 +264,14 @@ func getClientIP(req *http.Request) string {
 	}
 	
 	// Fall back to RemoteAddr
-	return strings.Split(req.RemoteAddr, ":")[0]
+	remoteAddr := req.RemoteAddr
+	ipPort := strings.Split(remoteAddr, ":")
+	if len(ipPort) > 0 {
+		return ipPort[0]
+	}
+	
+	// In case RemoteAddr is in an unexpected format
+	return remoteAddr
 }
 
 // serveQueuePage serves the queue page HTML

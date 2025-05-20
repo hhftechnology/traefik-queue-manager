@@ -85,6 +85,7 @@ func TestGetClientIP(t *testing.T) {
 	// Test RemoteAddr
 	req1 := &http.Request{
 		RemoteAddr: "192.168.1.1:12345",
+		Header: make(http.Header),
 	}
 	if ip := getClientIP(req1); ip != "192.168.1.1" {
 		t.Errorf("Expected IP 192.168.1.1, got %s", ip)
@@ -93,10 +94,9 @@ func TestGetClientIP(t *testing.T) {
 	// Test X-Forwarded-For
 	req2 := &http.Request{
 		RemoteAddr: "10.0.0.1:12345",
-		Header: http.Header{
-			"X-Forwarded-For": []string{"192.168.1.2, 10.0.0.1"},
-		},
+		Header: make(http.Header),
 	}
+	req2.Header.Set("X-Forwarded-For", "192.168.1.2, 10.0.0.1")
 	if ip := getClientIP(req2); ip != "192.168.1.2" {
 		t.Errorf("Expected IP 192.168.1.2, got %s", ip)
 	}
@@ -104,10 +104,9 @@ func TestGetClientIP(t *testing.T) {
 	// Test X-Real-IP
 	req3 := &http.Request{
 		RemoteAddr: "10.0.0.1:12345",
-		Header: http.Header{
-			"X-Real-IP": []string{"192.168.1.3"},
-		},
+		Header: make(http.Header),
 	}
+	req3.Header.Set("X-Real-IP", "192.168.1.3")
 	if ip := getClientIP(req3); ip != "192.168.1.3" {
 		t.Errorf("Expected IP 192.168.1.3, got %s", ip)
 	}
@@ -115,11 +114,10 @@ func TestGetClientIP(t *testing.T) {
 	// Test precedence: X-Forwarded-For > X-Real-IP > RemoteAddr
 	req4 := &http.Request{
 		RemoteAddr: "10.0.0.1:12345",
-		Header: http.Header{
-			"X-Forwarded-For": []string{"192.168.1.4, 10.0.0.1"},
-			"X-Real-IP":       []string{"192.168.1.5"},
-		},
+		Header: make(http.Header),
 	}
+	req4.Header.Set("X-Forwarded-For", "192.168.1.4, 10.0.0.1")
+	req4.Header.Set("X-Real-IP", "192.168.1.5")
 	if ip := getClientIP(req4); ip != "192.168.1.4" {
 		t.Errorf("Expected IP 192.168.1.4, got %s", ip)
 	}
