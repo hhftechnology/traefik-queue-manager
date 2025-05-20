@@ -158,11 +158,9 @@ Example template:
 ## Example Usage with Docker Compose
 
 ```yaml
-version: "3.6"
-
 services:
   traefik:
-    image: traefik:v2.6
+    image: traefik:v3.3.4
     container_name: traefik
     command:
       - --log.level=INFO
