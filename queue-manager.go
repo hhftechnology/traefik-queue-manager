@@ -354,37 +354,41 @@ func (qm *QueueManager) prepareQueuePageData(position int) QueuePageData {
 // serveCustomTemplate attempts to serve the custom queue page template.
 // Returns true if successful, false if the template could not be served.
 func (qm *QueueManager) serveCustomTemplate(rw http.ResponseWriter, data QueuePageData) bool {
-	if !fileExists(qm.config.QueuePageFile) {
-		return false
-	}
-	
-	content, err := os.ReadFile(qm.config.QueuePageFile)
-	if err != nil {
-		if qm.config.Debug {
-			log.Printf("[Queue Manager] Error reading template file: %v", err)
-		}
-		return false
-	}
-	
-	queueTemplate, parseErr := template.New("QueuePage").Delims("[[", "]]").Parse(string(content))
-	if parseErr != nil {
-		if qm.config.Debug {
-			log.Printf("[Queue Manager] Error parsing template: %v", parseErr)
-		}
-		return false
-	}
-	
-	// Set content type
-	rw.Header().Set("Content-Type", qm.config.HTTPContentType)
-	rw.WriteHeader(qm.config.HTTPResponseCode)
-	
-	// Execute template
-	if execErr := queueTemplate.Execute(rw, data); execErr != nil && qm.config.Debug {
-		log.Printf("[Queue Manager] Error executing template: %v", execErr)
-		return false
-	}
-	
-	return true
+    // Make sure headers are set before any content is written
+    rw.Header().Set("Content-Type", qm.config.HTTPContentType)
+    rw.Header().Set("Cache-Control", "no-store, no-cache, must-revalidate")
+    rw.Header().Set("Pragma", "no-cache")
+    rw.WriteHeader(qm.config.HTTPResponseCode)
+    
+    if !fileExists(qm.config.QueuePageFile) {
+        return false
+    }
+    
+    content, err := os.ReadFile(qm.config.QueuePageFile)
+    if err != nil {
+        if qm.config.Debug {
+            log.Printf("[Queue Manager] Error reading template file: %v", err)
+        }
+        return false
+    }
+    
+    queueTemplate, parseErr := template.New("QueuePage").Delims("[[", "]]").Parse(string(content))
+    if parseErr != nil {
+        if qm.config.Debug {
+            log.Printf("[Queue Manager] Error parsing template: %v", parseErr)
+        }
+        return false
+    }
+    
+    // Execute template with appropriate data
+    if execErr := queueTemplate.Execute(rw, data); execErr != nil {
+        if qm.config.Debug {
+            log.Printf("[Queue Manager] Error executing template: %v", execErr)
+        }
+        return false
+    }
+    
+    return true
 }
 
 // serveFallbackTemplate serves the built-in default queue page template.
