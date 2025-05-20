@@ -5,8 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Queue - Please Wait</title>
     
-    <!-- Multiple refresh mechanisms -->
-    <meta http-equiv="refresh" content="[[.RefreshInterval]]">
+    <!-- Primary refresh mechanism -->
+    <meta http-equiv="refresh" content="[[.RefreshInterval]];url=./">
+    
+    <!-- Strong cache control -->
     <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate, max-age=0">
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
@@ -96,28 +98,43 @@
         </div>
     </div>
 
-    <!-- JavaScript that ensures page refresh -->
+    <!-- Improved multi-layered JavaScript refresh mechanism -->
     <script>
-        // Countdown timer
-        let countdown = [[.RefreshInterval]];
-        const countdownElement = document.getElementById('countdown');
-        
-        function updateCountdown() {
-            countdown--;
-            if (countdown <= 0) {
-                window.location.reload();
-            } else {
+        document.addEventListener('DOMContentLoaded', function() {
+            // Countdown timer
+            let countdown = [[.RefreshInterval]];
+            const countdownElement = document.getElementById('countdown');
+            
+            function updateCountdown() {
+                countdown--;
+                if (countdown <= 0) {
+                    // Clean refresh to base path
+                    window.location.href = window.location.pathname;
+                    return;
+                }
                 countdownElement.innerText = `This page will automatically refresh in ${countdown} seconds.`;
             }
-        }
-        
-        // Update countdown every second
-        setInterval(updateCountdown, 1000);
-        
-        // Force refresh as a backup
-        setTimeout(function() {
-            window.location.reload();
-        }, [[.RefreshInterval]] * 1000);
+            
+            // Update countdown every second
+            const timer = setInterval(updateCountdown, 1000);
+            
+            // Three-layer refresh mechanism
+            
+            // Method 1: Basic reload with cache bypass
+            setTimeout(function() {
+                window.location.reload(true);
+            }, [[.RefreshInterval]] * 900); // 90% of refresh interval
+            
+            // Method 2: Full location replace with clean URL
+            setTimeout(function() {
+                window.location.replace(window.location.pathname);
+            }, [[.RefreshInterval]] * 950); // 95% of refresh interval
+            
+            // Method 3: Direct assignment to clean location
+            setTimeout(function() {
+                window.location = window.location.pathname;
+            }, [[.RefreshInterval]] * 1000); // 100% of refresh interval
+        });
     </script>
 </body>
 </html>
