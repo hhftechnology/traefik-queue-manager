@@ -18,8 +18,6 @@ import (
 	"strconv"
 	"strings"
 	"time"
-
-	"github.com/patrickmn/go-cache"
 )
 
 // Config holds the plugin configuration.
@@ -81,7 +79,7 @@ type QueueManager struct {
 	next             http.Handler
 	name             string
 	config           *Config
-	cache            *cache.Cache
+	cache            *SimpleCache
 	template         *template.Template
 	queue            []Session
 	activeSessionIDs map[string]bool
@@ -114,7 +112,7 @@ func New(ctx context.Context, next http.Handler, config *Config, name string) (h
 		next:             next,
 		name:             name,
 		config:           config,
-		cache:            cache.New(config.SessionTime, config.PurgeTime),
+		cache:            NewSimpleCache(config.SessionTime, config.PurgeTime),
 		template:         tmpl,
 		queue:            make([]Session, 0),
 		activeSessionIDs: make(map[string]bool),
@@ -169,7 +167,7 @@ func (qm *QueueManager) canClientProceed(clientID string) bool {
 		}
 		
 		qm.activeSessionIDs[clientID] = true
-		qm.cache.Set(clientID, session, cache.DefaultExpiration)
+		qm.cache.Set(clientID, session, DefaultExpiration)
 		return true
 	}
 
@@ -179,8 +177,8 @@ func (qm *QueueManager) canClientProceed(clientID string) bool {
 
 // updateClientTimestamp updates the last seen timestamp for a client.
 func (qm *QueueManager) updateClientTimestamp(clientID string) {
-	if session, found := qm.cache.Get(clientID); found {
-		sessionData, ok := session.(Session)
+	if sessionObj, found := qm.cache.Get(clientID); found {
+		sessionData, ok := sessionObj.(Session)
 		if !ok {
 			if qm.config.Debug {
 				log.Printf("[Queue Manager] Error: Failed to convert session to Session type")
@@ -189,7 +187,7 @@ func (qm *QueueManager) updateClientTimestamp(clientID string) {
 		}
 		
 		sessionData.LastSeen = time.Now()
-		qm.cache.Set(clientID, sessionData, cache.DefaultExpiration)
+		qm.cache.Set(clientID, sessionData, DefaultExpiration)
 	}
 }
 
@@ -213,7 +211,7 @@ func (qm *QueueManager) placeClientInQueue(clientID string) int {
 			Position:  len(qm.queue),
 		}
 		qm.queue = append(qm.queue, session)
-		qm.cache.Set(clientID, session, cache.DefaultExpiration)
+		qm.cache.Set(clientID, session, DefaultExpiration)
 		position = len(qm.queue) - 1
 	}
 
@@ -483,11 +481,11 @@ func (qm *QueueManager) CleanupExpiredSessions() {
 	
 	// Update positions in queue
 	for i := range qm.queue {
-		if session, found := qm.cache.Get(qm.queue[i].ID); found {
-			sessionData, ok := session.(Session)
+		if sessionObj, found := qm.cache.Get(qm.queue[i].ID); found {
+			sessionData, ok := sessionObj.(Session)
 			if ok {
 				sessionData.Position = i
-				qm.cache.Set(qm.queue[i].ID, sessionData, cache.DefaultExpiration)
+				qm.cache.Set(qm.queue[i].ID, sessionData, DefaultExpiration)
 			}
 		}
 	}

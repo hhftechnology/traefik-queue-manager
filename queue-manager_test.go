@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"testing"
+	"time"
 )
 
 func TestGenerateUniqueID(t *testing.T) {
@@ -154,5 +155,50 @@ func TestFileExists(t *testing.T) {
 	// Test a non-existent file
 	if fileExists("nonexistent_file.txt") {
 		t.Errorf("fileExists should return false for a non-existent file")
+	}
+}
+
+// Add tests for the SimpleCache
+func TestSimpleCache(t *testing.T) {
+	// Create a new cache with default expiration of 1 second
+	cache := NewSimpleCache(time.Second, time.Second*2)
+	
+	// Test Set and Get
+	cache.Set("key1", "value1", DefaultExpiration)
+	val, found := cache.Get("key1")
+	if !found {
+		t.Errorf("Expected to find key1 in cache")
+	}
+	if val != "value1" {
+		t.Errorf("Expected value1, got %v", val)
+	}
+	
+	// Test with non-existant key
+	_, found = cache.Get("nonexistent")
+	if found {
+		t.Errorf("Should not find nonexistent key")
+	}
+	
+	// Test expiration
+	cache.Set("key2", "value2", 500*time.Millisecond)
+	time.Sleep(800 * time.Millisecond)
+	_, found = cache.Get("key2")
+	if found {
+		t.Errorf("key2 should have expired")
+	}
+	
+	// Test Delete
+	cache.Set("key3", "value3", NoExpiration)
+	cache.Delete("key3")
+	_, found = cache.Get("key3")
+	if found {
+		t.Errorf("key3 should have been deleted")
+	}
+	
+	// Test Flush
+	cache.Set("key4", "value4", NoExpiration)
+	cache.Flush()
+	if cache.ItemCount() != 0 {
+		t.Errorf("Cache should be empty after Flush")
 	}
 }
