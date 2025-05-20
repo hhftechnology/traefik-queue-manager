@@ -1,5 +1,5 @@
 // internal_cache.go
-package queuemanager
+package traefik_queue_manager
 
 import (
 	"sync"

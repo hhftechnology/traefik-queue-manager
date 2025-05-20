@@ -2,7 +2,7 @@
 // access to services by implementing a queue when capacity is reached.
 // It functions similar to a virtual waiting room, allowing a controlled number
 // of users to access the service while placing others in a structured queue.
-package queuemanager
+package traefik_queue_manager
 
 import (
 	"context"

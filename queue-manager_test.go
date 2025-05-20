@@ -1,6 +1,6 @@
 // Package queuemanager provides a Traefik middleware to control traffic flow
 // by implementing a queue system similar to a virtual waiting room.
-package queuemanager
+package traefik_queue_manager
 
 import (
 	"net/http"
