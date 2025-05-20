@@ -1,8 +1,9 @@
-package traefik_queue_manager
+package queuemanager
 
 import (
 	"context"
-	"crypto/md5"
+	"crypto/rand"
+	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
 	"html/template"
@@ -10,21 +11,22 @@ import (
 	"math"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/patrickmn/go-cache"
 )
 
-// Config holds the plugin configuration
+// Config holds the plugin configuration.
 type Config struct {
 	Enabled          bool          `json:"enabled"`           // Enable/disable the queue manager
 	QueuePageFile    string        `json:"queuePageFile"`     // Path to queue page HTML template
 	SessionTime      time.Duration `json:"sessionTime"`       // How long a session is valid for
 	PurgeTime        time.Duration `json:"purgeTime"`         // How often to purge expired sessions
 	MaxEntries       int           `json:"maxEntries"`        // Maximum concurrent users
-	HttpResponseCode int           `json:"httpResponseCode"`  // HTTP response code for queue page
-	HttpContentType  string        `json:"httpContentType"`   // Content type of queue page
+	HTTPResponseCode int           `json:"httpResponseCode"`  // HTTP response code for queue page
+	HTTPContentType  string        `json:"httpContentType"`   // Content type of queue page
 	UseCookies       bool          `json:"useCookies"`        // Use cookies or IP+UserAgent hash
 	CookieName       string        `json:"cookieName"`        // Name of the cookie
 	CookieMaxAge     int           `json:"cookieMaxAge"`      // Max age of the cookie in seconds
@@ -33,7 +35,7 @@ type Config struct {
 	Debug            bool          `json:"debug"`             // Enable debug logging
 }
 
-// CreateConfig creates the default plugin configuration
+// CreateConfig creates the default plugin configuration.
 func CreateConfig() *Config {
 	return &Config{
 		Enabled:          true,
@@ -41,8 +43,8 @@ func CreateConfig() *Config {
 		SessionTime:      1 * time.Minute,
 		PurgeTime:        5 * time.Minute,
 		MaxEntries:       100,
-		HttpResponseCode: http.StatusTooManyRequests,
-		HttpContentType:  "text/html; charset=utf-8",
+		HTTPResponseCode: http.StatusTooManyRequests,
+		HTTPContentType:  "text/html; charset=utf-8",
 		UseCookies:       true,
 		CookieName:       "queue-manager-id",
 		CookieMaxAge:     3600,
@@ -52,7 +54,7 @@ func CreateConfig() *Config {
 	}
 }
 
-// Session represents a visitor session
+// Session represents a visitor session.
 type Session struct {
 	ID        string    `json:"id"`        // Unique client identifier
 	CreatedAt time.Time `json:"createdAt"` // When the session was created
@@ -60,7 +62,7 @@ type Session struct {
 	Position  int       `json:"position"`  // Position in the queue
 }
 
-// QueuePageData contains data to be passed to the HTML template
+// QueuePageData contains data to be passed to the HTML template.
 type QueuePageData struct {
 	Position           int    `json:"position"`           // Position in queue
 	QueueSize          int    `json:"queueSize"`          // Total queue size
@@ -70,7 +72,7 @@ type QueuePageData struct {
 	Message            string `json:"message"`            // Custom message
 }
 
-// QueueManager is the middleware handler
+// QueueManager is the middleware handler.
 type QueueManager struct {
 	next             http.Handler
 	name             string
@@ -81,7 +83,7 @@ type QueueManager struct {
 	activeSessionIDs map[string]bool
 }
 
-// New creates a new queue manager middleware
+// New creates a new queue manager middleware.
 func New(ctx context.Context, next http.Handler, config *Config, name string) (http.Handler, error) {
 	// Validate configuration
 	if config.MaxEntries <= 0 {
@@ -115,7 +117,7 @@ func New(ctx context.Context, next http.Handler, config *Config, name string) (h
 	}, nil
 }
 
-// ServeHTTP implements the http.Handler interface
+// ServeHTTP implements the http.Handler interface.
 func (qm *QueueManager) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	// Skip if disabled
 	if !qm.config.Enabled {
@@ -136,9 +138,15 @@ func (qm *QueueManager) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	if qm.activeSessionIDs[clientID] {
 		// Update last seen timestamp
 		if session, found := qm.cache.Get(clientID); found {
-			sessionData := session.(Session)
-			sessionData.LastSeen = time.Now()
-			qm.cache.Set(clientID, sessionData, cache.DefaultExpiration)
+			sessionData, ok := session.(Session)
+			if !ok {
+				if qm.config.Debug {
+					log.Printf("[Queue Manager] Error: Failed to convert session to Session type")
+				}
+			} else {
+				sessionData.LastSeen = time.Now()
+				qm.cache.Set(clientID, sessionData, cache.DefaultExpiration)
+			}
 		}
 		
 		// Allow access
@@ -190,16 +198,22 @@ func (qm *QueueManager) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 
 	// Update last seen timestamp
 	if session, found := qm.cache.Get(clientID); found {
-		sessionData := session.(Session)
-		sessionData.LastSeen = time.Now()
-		qm.cache.Set(clientID, sessionData, cache.DefaultExpiration)
+		sessionData, ok := session.(Session)
+		if !ok {
+			if qm.config.Debug {
+				log.Printf("[Queue Manager] Error: Failed to convert session to Session type")
+			}
+		} else {
+			sessionData.LastSeen = time.Now()
+			qm.cache.Set(clientID, sessionData, cache.DefaultExpiration)
+		}
 	}
 
 	// Serve queue page
-	qm.serveQueuePage(rw, req, position)
+	qm.serveQueuePage(rw, position)
 }
 
-// getClientID generates or retrieves a unique client identifier
+// getClientID generates or retrieves a unique client identifier.
 func (qm *QueueManager) getClientID(rw http.ResponseWriter, req *http.Request) (string, bool) {
 	if qm.config.UseCookies {
 		// Try to get existing cookie
@@ -220,36 +234,41 @@ func (qm *QueueManager) getClientID(rw http.ResponseWriter, req *http.Request) (
 			SameSite: http.SameSiteLaxMode,
 		})
 		return newID, true
-	} else {
-		// Use IP + UserAgent hash
-		return generateClientHash(req), false
 	}
+	
+	// Use IP + UserAgent hash
+	return generateClientHash(req), false
 }
 
-// generateUniqueID creates a unique identifier for a client
+// generateUniqueID creates a unique identifier for a client.
 func generateUniqueID(req *http.Request) string {
-	// Create unique ID based on current time, remote IP, and cryptographic randomness
-	timestamp := time.Now().UnixNano()
-	clientIP := getClientIP(req)
-	
-	// Add randomness to ensure uniqueness
-	randBytes := make([]byte, 8)
-	for i := range randBytes {
-		randBytes[i] = byte(timestamp % 256)
-		timestamp /= 256
+	// Create a buffer for true randomness
+	randBytes := make([]byte, 16)
+	_, err := rand.Read(randBytes)
+	if err != nil {
+		// If crypto/rand fails, use a fallback method
+		timestamp := time.Now().UnixNano()
+		for i := range randBytes {
+			randBytes[i] = byte((timestamp + int64(i)) % 256)
+		}
 	}
 	
-	// Create a hash from the random bytes
-	hasher := md5.New()
+	// Add client IP to the randomness
+	clientIP := getClientIP(req)
+	
+	// Create a hash of the random bytes + IP
+	hasher := sha256.New()
 	hasher.Write(randBytes)
 	hasher.Write([]byte(clientIP))
-	randHash := hex.EncodeToString(hasher.Sum(nil))[:12]
+	hasher.Write([]byte(strconv.FormatInt(time.Now().UnixNano(), 10)))
+	
+	randHash := hex.EncodeToString(hasher.Sum(nil))[:16]
 	
 	// Format: timestamp-ip-randomhash
 	return fmt.Sprintf("%d-%s-%s", time.Now().UnixNano(), clientIP, randHash)
 }
 
-// generateClientHash creates a hash from client attributes
+// generateClientHash creates a hash from client attributes.
 func generateClientHash(req *http.Request) string {
 	// Get client IP
 	clientIP := getClientIP(req)
@@ -258,12 +277,12 @@ func generateClientHash(req *http.Request) string {
 	userAgent := req.UserAgent()
 	
 	// Create hash
-	hasher := md5.New()
+	hasher := sha256.New()
 	hasher.Write([]byte(clientIP + "|" + userAgent))
-	return hex.EncodeToString(hasher.Sum(nil))
+	return hex.EncodeToString(hasher.Sum(nil))[:32]
 }
 
-// getClientIP extracts the client's real IP address
+// getClientIP extracts the client's real IP address.
 func getClientIP(req *http.Request) string {
 	// Check for X-Forwarded-For header
 	if xff := req.Header.Get("X-Forwarded-For"); xff != "" {
@@ -289,8 +308,8 @@ func getClientIP(req *http.Request) string {
 	return remoteAddr
 }
 
-// serveQueuePage serves the queue page HTML
-func (qm *QueueManager) serveQueuePage(rw http.ResponseWriter, req *http.Request, position int) {
+// serveQueuePage serves the queue page HTML.
+func (qm *QueueManager) serveQueuePage(rw http.ResponseWriter, position int) {
 	// Calculate estimated wait time (rough estimate: 30 seconds per position)
 	estimatedWaitTime := int(math.Ceil(float64(position) * 0.5)) // in minutes
 	
@@ -310,26 +329,23 @@ func (qm *QueueManager) serveQueuePage(rw http.ResponseWriter, req *http.Request
 		Message:            "Please wait while we process your request.",
 	}
 	
-	// Check if we have a template file
+	// Try to use the template file
 	if fileExists(qm.config.QueuePageFile) {
-		// Read the file content
 		content, err := os.ReadFile(qm.config.QueuePageFile)
 		if err == nil {
-			// Create a new template from the file content
-			tmpl, err := template.New("QueuePage").Delims("[[", "]]").Parse(string(content))
-			if err == nil {
+			queueTemplate, parseErr := template.New("QueuePage").Delims("[[", "]]").Parse(string(content))
+			if parseErr == nil {
 				// Set content type
-				rw.Header().Set("Content-Type", qm.config.HttpContentType)
-				rw.WriteHeader(qm.config.HttpResponseCode)
+				rw.Header().Set("Content-Type", qm.config.HTTPContentType)
+				rw.WriteHeader(qm.config.HTTPResponseCode)
 				
 				// Execute template
-				err = tmpl.Execute(rw, data)
-				if err != nil && qm.config.Debug {
-					log.Printf("[Queue Manager] Error executing template: %v", err)
+				if execErr := queueTemplate.Execute(rw, data); execErr != nil && qm.config.Debug {
+					log.Printf("[Queue Manager] Error executing template: %v", execErr)
 				}
 				return
 			} else if qm.config.Debug {
-				log.Printf("[Queue Manager] Error parsing template: %v", err)
+				log.Printf("[Queue Manager] Error parsing template: %v", parseErr)
 			}
 		} else if qm.config.Debug {
 			log.Printf("[Queue Manager] Error reading template file: %v", err)
@@ -391,16 +407,16 @@ func (qm *QueueManager) serveQueuePage(rw http.ResponseWriter, req *http.Request
 	
 	// Create and execute the fallback template
 	tmpl, _ := template.New("FallbackQueuePage").Delims("[[", "]]").Parse(fallbackTemplate)
-	rw.Header().Set("Content-Type", qm.config.HttpContentType)
-	rw.WriteHeader(qm.config.HttpResponseCode)
-	err := tmpl.Execute(rw, data)
-	if err != nil && qm.config.Debug {
+	rw.Header().Set("Content-Type", qm.config.HTTPContentType)
+	rw.WriteHeader(qm.config.HTTPResponseCode)
+	if err := tmpl.Execute(rw, data); err != nil && qm.config.Debug {
 		log.Printf("[Queue Manager] Error executing fallback template: %v", err)
 	}
 }
 
-// Periodically check and clean up expired sessions
-func (qm *QueueManager) cleanupExpiredSessions() {
+// CleanupExpiredSessions periodically checks and removes expired sessions.
+// This should be called periodically, e.g., using a background goroutine.
+func (qm *QueueManager) CleanupExpiredSessions() {
 	// Check if any active sessions have expired
 	for id := range qm.activeSessionIDs {
 		if _, found := qm.cache.Get(id); !found {
@@ -430,14 +446,16 @@ func (qm *QueueManager) cleanupExpiredSessions() {
 	// Update positions in queue
 	for i := range qm.queue {
 		if session, found := qm.cache.Get(qm.queue[i].ID); found {
-			sessionData := session.(Session)
-			sessionData.Position = i
-			qm.cache.Set(qm.queue[i].ID, sessionData, cache.DefaultExpiration)
+			sessionData, ok := session.(Session)
+			if ok {
+				sessionData.Position = i
+				qm.cache.Set(qm.queue[i].ID, sessionData, cache.DefaultExpiration)
+			}
 		}
 	}
 }
 
-// Helper function to check if a file exists
+// fileExists checks if a file exists.
 func fileExists(path string) bool {
 	_, err := os.Stat(path)
 	return err == nil
