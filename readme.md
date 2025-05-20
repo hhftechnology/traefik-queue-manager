@@ -1,270 +1,210 @@
-This repository includes an example plugin, `demo`, for you to use as a reference for developing your own plugins.
+# Traefik Queue Manager Middleware Plugin
 
-[![Build Status](https://github.com/traefik/plugindemo/workflows/Main/badge.svg?branch=master)](https://github.com/traefik/plugindemo/actions)
+A Traefik middleware plugin that implements a queue management system for your services, helping to manage traffic spikes by limiting the number of concurrent users and providing a fair waiting experience.
 
-The existing plugins can be browsed into the [Plugin Catalog](https://plugins.traefik.io).
+## How It Works
 
-# Developing a Traefik plugin
+When traffic exceeds your configured capacity:
+1. New visitors are placed in a queue
+2. Users are shown their position in the queue with estimated wait time
+3. The queue page automatically refreshes at configurable intervals
+4. When capacity becomes available, visitors are let in based on first-come, first-served
 
-[Traefik](https://traefik.io) plugins are developed using the [Go language](https://golang.org).
+The plugin uses a client identifier (cookie or IP+UserAgent hash) to track visitors and ensure a fair queuing system.
 
-A [Traefik](https://traefik.io) middleware plugin is just a [Go package](https://golang.org/ref/spec#Packages) that provides an `http.Handler` to perform specific processing of requests and responses.
+## Features
 
-Rather than being pre-compiled and linked, however, plugins are executed on the fly by [Yaegi](https://github.com/traefik/yaegi), an embedded Go interpreter.
+- Configurable maximum number of concurrent users
+- Custom queue page template
+- Adjustable expiration time for sessions
+- Option to use cookies or IP+UserAgent hash for visitor tracking
+- Real-time capacity monitoring
+- Visual progress indication for waiting users
 
-## Usage
+## Installation
 
-For a plugin to be active for a given Traefik instance, it must be declared in the static configuration.
-
-Plugins are parsed and loaded exclusively during startup, which allows Traefik to check the integrity of the code and catch errors early on.
-If an error occurs during loading, the plugin is disabled.
-
-For security reasons, it is not possible to start a new plugin or modify an existing one while Traefik is running.
-
-Once loaded, middleware plugins behave exactly like statically compiled middlewares.
-Their instantiation and behavior are driven by the dynamic configuration.
-
-Plugin dependencies must be [vendored](https://golang.org/ref/mod#vendoring) for each plugin.
-Vendored packages should be included in the plugin's GitHub repository. ([Go modules](https://blog.golang.org/using-go-modules) are not supported.)
-
-### Configuration
-
-For each plugin, the Traefik static configuration must define the module name (as is usual for Go packages).
-
-The following declaration (given here in YAML) defines a plugin:
+### From Traefik Pilot (Recommended)
 
 ```yaml
 # Static configuration
-
 experimental:
   plugins:
-    example:
-      moduleName: github.com/traefik/plugindemo
-      version: v0.2.1
+    queuemanager:
+      moduleName: "github.com/hhftechnology/traefik-queue-manager"
+      version: "v1.0.0"
 ```
 
-Here is an example of a file provider dynamic configuration (given here in YAML), where the interesting part is the `http.middlewares` section:
+### Manual Installation
+
+1. Clone the repository:
+   ```
+   git clone https://github.com/hhftechnology/traefik-queue-manager.git
+   ```
+
+2. Build and install the plugin:
+   ```
+   cd traefik-queue-manager
+   go build -o traefik-queue-manager
+   ```
+
+3. Configure Traefik to use the local plugin:
+   ```yaml
+   # Static configuration
+   experimental:
+     localPlugins:
+       queuemanager:
+         moduleName: "github.com/hhftechnology/traefik-queue-manager"
+   ```
+
+## Configuration
+
+### Plugin Configuration Options
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `enabled` | boolean | `true` | Enable/disable the queue manager |
+| `queuePageFile` | string | `queue-page.html` | Path to the queue page HTML template |
+| `sessionTime` | duration | `1m` | Duration for which a visitor session is valid |
+| `purgeTime` | duration | `5m` | How often expired sessions are purged from cache |
+| `maxEntries` | int | `100` | Maximum number of concurrent users allowed |
+| `httpResponseCode` | int | `429` | HTTP response code for queue page |
+| `httpContentType` | string | `text/html; charset=utf-8` | Content type of queue page |
+| `useCookies` | boolean | `true` | Use cookies for tracking; if false, uses IP+UserAgent hash |
+| `cookieName` | string | `queue-manager-id` | Name of the cookie used for tracking |
+| `cookieMaxAge` | int | `3600` | Max age of the cookie in seconds |
+| `refreshInterval` | int | `30` | Refresh interval in seconds |
+| `debug` | boolean | `false` | Enable debug logging |
+
+### Example Configuration
 
 ```yaml
-# Dynamic configuration
-
-http:
-  routers:
-    my-router:
-      rule: host(`demo.localhost`)
-      service: service-foo
-      entryPoints:
-        - web
-      middlewares:
-        - my-plugin
-
-  services:
-   service-foo:
-      loadBalancer:
-        servers:
-          - url: http://127.0.0.1:5000
-  
-  middlewares:
-    my-plugin:
-      plugin:
-        example:
-          headers:
-            Foo: Bar
+# Dynamic configuration with Docker provider
+labels:
+  - traefik.http.middlewares.queuemanager.plugin.queuemanager.enabled=true
+  - traefik.http.middlewares.queuemanager.plugin.queuemanager.queuePageFile=/path/to/queue-page.html
+  - traefik.http.middlewares.queuemanager.plugin.queuemanager.maxEntries=500
+  - traefik.http.middlewares.queuemanager.plugin.queuemanager.sessionTime=5m
+  - traefik.http.middlewares.queuemanager.plugin.queuemanager.useCookies=true
+  - traefik.http.middlewares.queuemanager.plugin.queuemanager.cookieName=queue-manager-id
 ```
 
-### Local Mode
+## Customizing the Queue Page
 
-Traefik also offers a developer mode that can be used for temporary testing of plugins not hosted on GitHub.
-To use a plugin in local mode, the Traefik static configuration must define the module name (as is usual for Go packages) and a path to a [Go workspace](https://golang.org/doc/gopath_code.html#Workspaces), which can be the local GOPATH or any directory.
+You can customize the queue page by modifying the HTML template. The template supports the following variables:
 
-The plugins must be placed in `./plugins-local` directory,
-which should be in the working directory of the process running the Traefik binary.
-The source code of the plugin should be organized as follows:
+- `[[.Position]]` - Current position in queue
+- `[[.QueueSize]]` - Total queue size 
+- `[[.EstimatedWaitTime]]` - Estimated wait time in minutes
+- `[[.RefreshInterval]]` - Refresh interval in seconds
+- `[[.ProgressPercentage]]` - Visual progress percentage
+- `[[.Message]]` - Custom message
 
+Example template:
+
+```html
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Service Queue</title>
+    <meta http-equiv="refresh" content="[[.RefreshInterval]]">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            margin-top: 50px;
+        }
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        .progress {
+            margin: 20px 0;
+            height: 20px;
+            background-color: #f5f5f5;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+        .progress-bar {
+            height: 100%;
+            background-color: #4CAF50;
+            text-align: center;
+            line-height: 20px;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>You're in the queue</h1>
+        <p>Our service is currently at capacity. Please wait and you'll be automatically redirected when space becomes available.</p>
+        
+        <div class="progress">
+            <div class="progress-bar" style="width: [[.ProgressPercentage]]%">
+                [[.ProgressPercentage]]%
+            </div>
+        </div>
+        
+        <p>Your position in queue: [[.Position]] of [[.QueueSize]]</p>
+        <p>Estimated wait time: [[.EstimatedWaitTime]] minutes</p>
+        <p>This page will refresh automatically in [[.RefreshInterval]] seconds.</p>
+    </div>
+</body>
+</html>
 ```
-./plugins-local/
-    └── src
-        └── github.com
-            └── traefik
-                └── plugindemo
-                    ├── demo.go
-                    ├── demo_test.go
-                    ├── go.mod
-                    ├── LICENSE
-                    ├── Makefile
-                    └── readme.md
-```
+
+## Example Usage with Docker Compose
 
 ```yaml
-# Static configuration
+version: "3.6"
 
-experimental:
-  localPlugins:
-    example:
-      moduleName: github.com/traefik/plugindemo
+services:
+  traefik:
+    image: traefik:v2.6
+    container_name: traefik
+    command:
+      - --log.level=INFO
+      - --api.insecure=true
+      - --providers.docker=true
+      - --entrypoints.web.address=:80
+      - --experimental.localPlugins.queuemanager.moduleName=github.com/hhftechnology/traefik-queue-manager
+    ports:
+      - "80:80"
+      - "8080:8080"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./:/plugins-local/src/github.com/hhftechnology/traefik-queue-manager
+    labels:
+      - traefik.http.middlewares.queuemanager.plugin.queuemanager.enabled=true
+      - traefik.http.middlewares.queuemanager.plugin.queuemanager.queuePageFile=/plugins-local/src/github.com/hhftechnology/traefik-queue-manager/queue-page.html
+      - traefik.http.middlewares.queuemanager.plugin.queuemanager.maxEntries=5
+      - traefik.http.middlewares.queuemanager.plugin.queuemanager.sessionTime=1m
+
+  myservice:
+    image: traefik/whoami
+    container_name: myservice
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.myservice.rule=Host(`service.local`)
+      - traefik.http.routers.myservice.entrypoints=web
+      - traefik.http.routers.myservice.middlewares=queuemanager
 ```
 
-(In the above example, the `plugindemo` plugin will be loaded from the path `./plugins-local/src/github.com/traefik/plugindemo`.)
+## Performance Considerations
 
-```yaml
-# Dynamic configuration
+The plugin uses an in-memory cache to track active sessions, which provides excellent performance but means:
 
-http:
-  routers:
-    my-router:
-      rule: host(`demo.localhost`)
-      service: service-foo
-      entryPoints:
-        - web
-      middlewares:
-        - my-plugin
+1. If you're running multiple Traefik instances, each will maintain its own separate queue
+2. If Traefik restarts, all queue data is lost
 
-  services:
-   service-foo:
-      loadBalancer:
-        servers:
-          - url: http://127.0.0.1:5000
-  
-  middlewares:
-    my-plugin:
-      plugin:
-        example:
-          headers:
-            Foo: Bar
-```
+For high-availability setups, consider using a shared Redis cache or similar solution.
 
-## Defining a Plugin
+## Contributing
 
-A plugin package must define the following exported Go objects:
+Contributions are welcome! Please feel free to submit a Pull Request.
 
-- A type `type Config struct { ... }`. The struct fields are arbitrary.
-- A function `func CreateConfig() *Config`.
-- A function `func New(ctx context.Context, next http.Handler, config *Config, name string) (http.Handler, error)`.
+## License
 
-```go
-// Package example a example plugin.
-package example
-
-import (
-	"context"
-	"net/http"
-)
-
-// Config the plugin configuration.
-type Config struct {
-	// ...
-}
-
-// CreateConfig creates the default plugin configuration.
-func CreateConfig() *Config {
-	return &Config{
-		// ...
-	}
-}
-
-// Example a plugin.
-type Example struct {
-	next     http.Handler
-	name     string
-	// ...
-}
-
-// New created a new plugin.
-func New(ctx context.Context, next http.Handler, config *Config, name string) (http.Handler, error) {
-	// ...
-	return &Example{
-		// ...
-	}, nil
-}
-
-func (e *Example) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
-	// ...
-	e.next.ServeHTTP(rw, req)
-}
-```
-
-## Logs
-
-Currently, the only way to send logs to Traefik is to use `os.Stdout.WriteString("...")` or `os.Stderr.WriteString("...")`.
-
-In the future, we will try to provide something better and based on levels.
-
-## Plugins Catalog
-
-Traefik plugins are stored and hosted as public GitHub repositories.
-
-Every 30 minutes, the Plugins Catalog online service polls Github to find plugins and add them to its catalog.
-
-### Prerequisites
-
-To be recognized by Plugins Catalog, your repository must meet the following criteria:
-
-- The `traefik-plugin` topic must be set.
-- The `.traefik.yml` manifest must exist, and be filled with valid contents.
-
-If your repository fails to meet either of these prerequisites, Plugins Catalog will not see it.
-
-### Manifest
-
-A manifest is also mandatory, and it should be named `.traefik.yml` and stored at the root of your project.
-
-This YAML file provides Plugins Catalog with information about your plugin, such as a description, a full name, and so on.
-
-Here is an example of a typical `.traefik.yml`file:
-
-```yaml
-# The name of your plugin as displayed in the Plugins Catalog web UI.
-displayName: Name of your plugin
-
-# For now, `middleware` is the only type available.
-type: middleware
-
-# The import path of your plugin.
-import: github.com/username/my-plugin
-
-# A brief description of what your plugin is doing.
-summary: Description of what my plugin is doing
-
-# Medias associated to the plugin (optional)
-iconPath: foo/icon.png
-bannerPath: foo/banner.png
-
-# Configuration data for your plugin.
-# This is mandatory,
-# and Plugins Catalog will try to execute the plugin with the data you provide as part of its startup validity tests.
-testData:
-  Headers:
-    Foo: Bar
-```
-
-Properties include:
-
-- `displayName` (required): The name of your plugin as displayed in the Plugins Catalog web UI.
-- `type` (required): For now, `middleware` is the only type available.
-- `import` (required): The import path of your plugin.
-- `summary` (required): A brief description of what your plugin is doing.
-- `testData` (required): Configuration data for your plugin. This is mandatory, and Plugins Catalog will try to execute the plugin with the data you provide as part of its startup validity tests.
-- `iconPath` (optional): A local path in the repository to the icon of the project.
-- `bannerPath` (optional): A local path in the repository to the image that will be used when you will share your plugin page in social medias.
-
-There should also be a `go.mod` file at the root of your project. Plugins Catalog will use this file to validate the name of the project.
-
-### Tags and Dependencies
-
-Plugins Catalog gets your sources from a Go module proxy, so your plugins need to be versioned with a git tag.
-
-Last but not least, if your plugin middleware has Go package dependencies, you need to vendor them and add them to your GitHub repository.
-
-If something goes wrong with the integration of your plugin, Plugins Catalog will create an issue inside your Github repository and will stop trying to add your repo until you close the issue.
-
-## Troubleshooting
-
-If Plugins Catalog fails to recognize your plugin, you will need to make one or more changes to your GitHub repository.
-
-In order for your plugin to be successfully imported by Plugins Catalog, consult this checklist:
-
-- The `traefik-plugin` topic must be set on your repository.
-- There must be a `.traefik.yml` file at the root of your project describing your plugin, and it must have a valid `testData` property for testing purposes.
-- There must be a valid `go.mod` file at the root of your project.
-- Your plugin must be versioned with a git tag.
-- If you have package dependencies, they must be vendored and added to your GitHub repository.
+This project is licensed under the MIT License - see the LICENSE file for details.

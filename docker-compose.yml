@@ -1,0 +1,54 @@
+# docker-compose.yml
+version: "3.6"
+
+services:
+  traefik:
+    image: traefik:v3.3.4
+    container_name: traefik
+    command:
+      - --log.level=INFO
+      - --api
+      - --api.dashboard
+      - --api.insecure=true
+      - --providers.docker=true
+      - --entrypoints.web.address=:80
+      - --experimental.localPlugins.queuemanager.moduleName=github.com/hhftechnology/traefik-queue-manager
+    ports:
+      - "80:80"
+      - "8080:8080"
+    networks:
+      - traefik-network
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./:/plugins-local/src/github.com/hhftechnology/traefik-queue-manager
+    labels:
+      - traefik.http.middlewares.queuemanager.plugin.queuemanager.enabled=true
+      - traefik.http.middlewares.queuemanager.plugin.queuemanager.queuePageFile=/plugins-local/src/github.com/hhftechnology/traefik-queue-manager/queue-page.html
+      - traefik.http.middlewares.queuemanager.plugin.queuemanager.maxEntries=5
+      - traefik.http.middlewares.queuemanager.plugin.queuemanager.sessionTime=1m
+      - traefik.http.middlewares.queuemanager.plugin.queuemanager.purgeTime=5m
+      - traefik.http.middlewares.queuemanager.plugin.queuemanager.useCookies=true
+      - traefik.http.middlewares.queuemanager.plugin.queuemanager.cookieName=queue-manager-id
+      - traefik.http.middlewares.queuemanager.plugin.queuemanager.refreshInterval=30
+      - traefik.http.middlewares.queuemanager.plugin.queuemanager.debug=true
+
+  whoami:
+    image: traefik/whoami
+    container_name: whoami-service
+    depends_on:
+      - traefik
+    networks:
+      - traefik-network
+    deploy:
+      replicas: 3
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.whoami.rule=Host(`whoami.local`)
+      - traefik.http.routers.whoami.entrypoints=web
+      - traefik.http.routers.whoami.service=whoami-service
+      - traefik.http.services.whoami-service.loadbalancer.server.port=80
+      - traefik.http.routers.whoami.middlewares=queuemanager
+
+networks:
+  traefik-network:
+    driver: bridge

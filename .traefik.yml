@@ -1,12 +1,13 @@
-displayName: Demo Plugin
+displayName: Queue Manager
 type: middleware
+import: github.com/hhftechnology/traefik-queue-manager
+summary: |
+  This plugin implements a queue management system for Traefik services, limiting the number of concurrent users and placing excess traffic in a fair, first-come-first-served queue with automatic refresh.
 iconPath: .assets/icon.png
-
-import: github.com/traefik/plugindemo
-
-summary: '[Demo] Add Request Header'
-
 testData:
-  Headers:
-    X-Demo: test
-    X-URL: '{{URL}}'
+  enabled: true
+  maxEntries: 100
+  sessionTime: 1m
+  queuePageFile: queue-page.html
+  useCookies: true
+  cookieName: queue-manager-id

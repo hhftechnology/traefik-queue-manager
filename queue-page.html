@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Service Queue</title>
+    <meta http-equiv="refresh" content="[[.RefreshInterval]]">
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f8f9fa;
+            color: #333;
+            line-height: 1.6;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 650px;
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+            text-align: center;
+        }
+        
+        h1 {
+            color: #2c3e50;
+            margin-bottom: 20px;
+            font-weight: 600;
+        }
+        
+        .status {
+            font-size: 1.1em;
+            margin: 20px 0;
+        }
+        
+        .highlight {
+            font-weight: bold;
+            color: #3498db;
+        }
+        
+        .progress-container {
+            width: 100%;
+            background-color: #e9ecef;
+            border-radius: 10px;
+            padding: 3px;
+            margin: 25px 0;
+        }
+        
+        .progress-bar {
+            height: 20px;
+            background: linear-gradient(90deg, #4caf50, #8bc34a);
+            border-radius: 7px;
+            transition: width 0.5s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 0.8em;
+            font-weight: bold;
+            text-shadow: 0 1px 1px rgba(0,0,0,0.2);
+        }
+        
+        .info-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin: 20px 0;
+            text-align: left;
+        }
+        
+        .info-box {
+            background-color: #f0f4f8;
+            padding: 15px;
+            border-radius: 8px;
+            border-left: 4px solid #3498db;
+        }
+        
+        .info-box h3 {
+            margin-top: 0;
+            font-size: 1em;
+            color: #666;
+        }
+        
+        .info-box p {
+            margin-bottom: 0;
+            font-size: 1.2em;
+            font-weight: 600;
+        }
+        
+        .refresh-info {
+            font-size: 0.9em;
+            color: #666;
+            margin-top: 20px;
+        }
+        
+        .logo {
+            margin-bottom: 20px;
+            font-size: 2em;
+            font-weight: bold;
+            color: #3498db;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="logo">⏳</div>
+        <h1>You're in the queue</h1>
+        <p>Our service is currently experiencing high demand. You've been placed in a queue and will be automatically redirected when it's your turn.</p>
+        
+        <div class="progress-container">
+        <div class="progress-container">
+            <div class="progress-bar" style="width: [[.ProgressPercentage]]%;">[[.ProgressPercentage]]%</div>
+        </div>
+        <div class="info-grid">
+            <div class="info-box">
+                <h3>Your position</h3>
+                <p><span class="highlight">[[.Position]]</span> of [[.QueueSize]]</p>
+            </div>
+            <div class="info-box">
+                <h3>Estimated wait time</h3>
+                <p><span class="highlight">[[.EstimatedWaitTime]]</span> minutes</p>
+            </div>
+        </div>
+        
+        <div class="status">
+            [[.Message]]
+        </div>
+        
+        <div class="refresh-info">
+            This page will automatically refresh in [[.RefreshInterval]] seconds.
+        </div>
+    </div>
+</body>
+</html>
