@@ -29,7 +29,7 @@ The plugin uses a client identifier (cookie or IP+UserAgent hash) to track visit
 # Static configuration
 experimental:
   plugins:
-    queuemanager:
+    traefik-queue-manager:
       moduleName: "github.com/hhftechnology/traefik-queue-manager"
       version: "v1.0.0"
 ```
@@ -52,7 +52,7 @@ experimental:
    # Static configuration
    experimental:
      localPlugins:
-       queuemanager:
+       traefik-queue-manager:
          moduleName: "github.com/hhftechnology/traefik-queue-manager"
    ```
 
@@ -99,62 +99,6 @@ You can customize the queue page by modifying the HTML template. The template su
 - `[[.ProgressPercentage]]` - Visual progress percentage
 - `[[.Message]]` - Custom message
 
-Example template:
-
-```html
-<!DOCTYPE html>
-<html>
-<head>
-    <title>Service Queue</title>
-    <meta http-equiv="refresh" content="[[.RefreshInterval]]">
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            text-align: center;
-            margin-top: 50px;
-        }
-        .container {
-            max-width: 600px;
-            margin: 0 auto;
-            padding: 20px;
-            border: 1px solid #ddd;
-            border-radius: 5px;
-        }
-        .progress {
-            margin: 20px 0;
-            height: 20px;
-            background-color: #f5f5f5;
-            border-radius: 4px;
-            overflow: hidden;
-        }
-        .progress-bar {
-            height: 100%;
-            background-color: #4CAF50;
-            text-align: center;
-            line-height: 20px;
-            color: white;
-        }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <h1>You're in the queue</h1>
-        <p>Our service is currently at capacity. Please wait and you'll be automatically redirected when space becomes available.</p>
-        
-        <div class="progress">
-            <div class="progress-bar" style="width: [[.ProgressPercentage]]%">
-                [[.ProgressPercentage]]%
-            </div>
-        </div>
-        
-        <p>Your position in queue: [[.Position]] of [[.QueueSize]]</p>
-        <p>Estimated wait time: [[.EstimatedWaitTime]] minutes</p>
-        <p>This page will refresh automatically in [[.RefreshInterval]] seconds.</p>
-    </div>
-</body>
-</html>
-```
-
 ## Example Usage with Docker Compose
 
 ```yaml
@@ -189,8 +133,145 @@ services:
       - traefik.http.routers.myservice.entrypoints=web
       - traefik.http.routers.myservice.middlewares=queuemanager
 ```
-
-## Performance Considerations
+```yaml
+# This is an example of how to configure the Queue Manager middleware
+# in your Traefik dynamic configuration.
+#
+# If using Docker labels, you would prefix these with:
+# "traefik.http.middlewares.my-queue-middleware.plugin.queuemanager."
+#
+# Example for a middleware named "my-queue-middleware":
+#
+# http:
+#   middlewares:
+#     my-queue-middleware:
+#       plugin:
+#         queuemanager:
+#           # --- Basic Settings ---
+#           enabled: true
+#           # Description: Globally enables or disables the queue manager middleware.
+#           # Default: true
+#           # Tuning: Set to `false` to bypass queueing entirely without removing the middleware configuration.
+#
+#           maxEntries: 50
+#           # Description: The maximum number of concurrent users allowed to access the target service
+#           # before new users are placed into the queue.
+#           # Default: 100 (from CreateConfig in Go code)
+#           # Tuning: This is the most critical value. Set it based on your backend service's actual capacity
+#           # to handle concurrent requests without performance degradation. Start conservatively and monitor.
+#
+#           # --- Session Timeouts ---
+#           inactivityTimeoutSeconds: 300
+#           # Description: Defines how long an *active* user's session remains valid if they are inactive
+#           # (i.e., make no further requests to the service). After this period, their slot may be freed up.
+#           # Default: 60 (from CreateConfig in Go code)
+#           # Tuning:
+#           #   - Too short: Users reading a page or briefly idle might get requeued.
+#           #   - Too long: Idle users occupy slots longer, slowing queue progression.
+#           #   - Consider average user interaction time. 5-10 minutes (300-600s) is often reasonable.
+#
+#           hardSessionLimitSeconds: 3600
+#           # Description: (Optional) An absolute maximum duration (in seconds) for any active session,
+#           # regardless of user activity. If set to 0, this feature is disabled.
+#           # Default: 0 (disabled, from CreateConfig in Go code)
+#           # Tuning: Use this to ensure fair access over very long periods or to prevent indefinitely held slots.
+#           # For example, 3600 (1 hour) ensures a slot is freed at least hourly.
+#
+#           # --- Queue Mechanics ---
+#           cleanupIntervalSeconds: 60
+#           # Description: How frequently the plugin's internal cleanup process runs. This process evicts
+#           # expired (inactive or hard-limited) sessions and promotes users from the queue.
+#           # Default: 30 (from CreateConfig in Go code, previously 300 in older versions)
+#           # Tuning: Should be responsive. A good value is often `inactivityTimeoutSeconds / 2` or at least
+#           # no more than `inactivityTimeoutSeconds`. A value like 30-60 seconds ensures timely promotions.
+#
+#           queueStrategy: "fifo"
+#           # Description: The strategy for processing the queue. Currently, only "fifo" (First-In, First-Out)
+#           # is implemented and supported.
+#           # Default: "fifo" (from CreateConfig in Go code)
+#           # Tuning: Stick with "fifo" for fairness.
+#
+#           # --- Queue Page Customization ---
+#           queuePageFile: "/etc/traefik/queue-templates/my-custom-queue-page.html"
+#           # Description: Absolute path to your custom HTML template file for the queue page.
+#           # The plugin needs read access to this file from where Traefik is running (e.g., inside the Traefik container).
+#           # If not provided or the file is not found, a built-in default template is used.
+#           # Default: "queue-page.html" (relative path, from CreateConfig in Go code, ensure it's accessible)
+#           # Tuning: Customize this page for branding and user experience. Ensure it uses the placeholders
+#           # like `[[.RefreshInterval]]`, `[[.Position]]`, `[[.QueueSize]]`, etc.
+#
+#           refreshIntervalSeconds: 20
+#           # Description: How often the queue page (served to waiting users) automatically refreshes
+#           # to update their position and estimated wait time. This value is passed to the `[[.RefreshInterval]]`
+#           # placeholder in your `queuePageFile`.
+#           # Default: 20 (from CreateConfig in Go code, previously 30 in older versions)
+#           # Tuning: 15-30 seconds is a good range. Too short can be distracting; too long makes users feel uninformed.
+#
+#           minWaitTimeMinutes: 1
+#           # Description: The minimum estimated wait time (in minutes) that will be displayed to users,
+#           # even if the calculated wait time is less (but not zero). Prevents showing "0 minutes" if they are still queued.
+#           # Default: 1 (from CreateConfig in Go code)
+#           # Tuning: 1-2 minutes is usually a good minimum to manage expectations.
+#
+#           httpResponseCode: 429
+#           # Description: The HTTP status code returned when serving the queue page.
+#           # `429 Too Many Requests` is semantically appropriate.
+#           # Default: 429 (from CreateConfig in Go code)
+#           # Tuning: Usually no need to change. `503 Service Unavailable` is an alternative.
+#
+#           httpContentType: "text/html; charset=utf-8"
+#           # Description: The Content-Type header for the queue page.
+#           # Default: "text/html; charset=utf-8" (from CreateConfig in Go code)
+#           # Tuning: Keep as is for standard HTML pages.
+#
+#           # --- Client Identification (Cookies) ---
+#           useCookies: true
+#           # Description: Whether to use cookies (`true`) or an IP Address + User-Agent hash (`false`)
+#           # to identify and track users.
+#           # Default: true (from CreateConfig in Go code)
+#           # Tuning: `true` (cookies) is generally recommended for better accuracy and fairness, especially
+#           # if users might share IPs or have dynamic IPs.
+#
+#           cookieName: "my_app_queue_id"
+#           # Description: The name of the cookie used for tracking if `useCookies` is `true`.
+#           # Default: "queue-manager-id" (from CreateConfig in Go code)
+#           # Tuning: Change if the default name conflicts with other cookies used by your applications.
+#
+#           cookieMaxAgeSeconds: 7200
+#           # Description: The maximum age of the tracking cookie in the user's browser (in seconds).
+#           # This determines how long a user might be remembered if they close and reopen their browser.
+#           # It's different from server-side session timeouts.
+#           # Default: 3600 (1 hour, from CreateConfig in Go code)
+#           # Tuning: 1-2 hours (3600-7200s) is common. Longer might be convenient for users in very long queues.
+#
+#           # --- Logging & Debugging ---
+#           debug: false
+#           # Description: Enables verbose debug logging for the plugin. This will override `logLevel` to "debug".
+#           # Default: false (from CreateConfig in Go code)
+#           # Tuning: Set to `true` ONLY for troubleshooting. Disable in production as it's very verbose.
+#
+#           logLevel: "info"
+#           # Description: Sets the logging level for the plugin. Options: "debug", "info", "warn", "error".
+#           # If `debug` is `true`, this is effectively "debug".
+#           # Default: "info" (from CreateConfig in Go code)
+#           # Tuning: "info" is good for production. "warn" or "error" for less verbosity if "info" is too much.
+#
+#           logFile: ""
+#           # Description: (Optional) Path to a file where plugin logs should be written.
+#           # If empty or not specified, logs go to Traefik's standard output (stderr).
+#           # Ensure Traefik has write permissions to this path if specified.
+#           # Default: "" (stderr, from CreateConfig in Go code)
+#           # Tuning: Use if you want to separate queue manager logs from main Traefik logs.
+#
+# Example of applying this middleware to a router (e.g., in Docker labels):
+# labels:
+#   - "traefik.http.routers.my-service.middlewares=my-queue-middleware@file" # If defined in a file provider
+#   # or if defining the middleware directly on the router:
+#   - "traefik.http.routers.my-service.middlewares=my-queue"
+#   - "traefik.http.middlewares.my-queue.plugin.queuemanager.maxEntries=50"
+#   - "traefik.http.middlewares.my-queue.plugin.queuemanager.inactivityTimeoutSeconds=300"
+#   # ... and so on for other parameters ...
+```
 
 The plugin uses an in-memory cache to track active sessions, which provides excellent performance but means:
 
