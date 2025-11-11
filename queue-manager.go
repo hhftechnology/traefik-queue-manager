@@ -26,62 +26,65 @@ import (
 const (
 	defaultLogLevel              = "info" // Default logging level
 	logPrefix                    = "[QueueManager] "
-	defaultInactivityTimeoutSecs = 60   // Default seconds for a session to be considered inactive
-	defaultCleanupIntervalSecs   = 30   // Default seconds for how often cleanup logic runs (reduced for responsiveness)
-	defaultMaxEntries            = 100  // Default maximum concurrent users
+	defaultInactivityTimeoutSecs = 60  // Default seconds for a session to be considered inactive
+	defaultCleanupIntervalSecs   = 30  // Default seconds for how often cleanup logic runs (reduced for responsiveness)
+	defaultMaxEntries            = 100 // Default maximum concurrent users
 	defaultHTTPResponseCode      = http.StatusTooManyRequests
 	defaultHTTPContentType       = "text/html; charset=utf-8"
 	defaultUseCookies            = true
 	defaultCookieName            = "queue-manager-id"
-	defaultCookieMaxAgeSecs      = 3600 // 1 hour
+	defaultCookieMaxAgeSecs      = 3600   // 1 hour
 	defaultQueueStrategy         = "fifo" // Currently only "fifo" is implemented
-	defaultRefreshIntervalSecs   = 20   // Default seconds for queue page refresh (reduced for better UX)
-	defaultMinWaitTimeMinutes    = 1    // Default minimum wait time displayed to users
-	defaultQueuePageFile         = "queue-page.html"
-	secureIDLengthBytes          = 16   // Number of random bytes for secure cookie ID generation
+	defaultRefreshIntervalSecs   = 20     // Default seconds for queue page refresh (reduced for better UX)
+	defaultMinWaitTimeMinutes    = 1      // Default minimum wait time displayed to users
+	defaultQueuePageFile         = "public/queue-page.en.html"
+	secureIDLengthBytes          = 16                     // Number of random bytes for secure cookie ID generation
+	defaultTemplatesDir          = "/var/queue-templates" // Location of templates (locally public)
 )
 
 // Config holds the plugin configuration.
 type Config struct {
-	Enabled                   bool   `json:"enabled"`                   // Enable/disable the queue manager
-	QueuePageFile             string `json:"queuePageFile"`             // Path to queue page HTML template
-	InactivityTimeoutSeconds  int    `json:"inactivityTimeoutSeconds"`  // How long an inactive session is valid for (in seconds)
-	HardSessionLimitSeconds   int    `json:"hardSessionLimitSeconds"`   // Optional: Absolute max time for an active session (seconds), 0 to disable
-	CleanupIntervalSeconds    int    `json:"cleanupIntervalSeconds"`    // How often to run cleanup logic (in seconds)
-	MaxEntries                int    `json:"maxEntries"`                // Maximum concurrent users
-	HTTPResponseCode          int    `json:"httpResponseCode"`          // HTTP response code for queue page
-	HTTPContentType           string `json:"httpContentType"`           // Content type of queue page
-	UseCookies                bool   `json:"useCookies"`                // Use cookies or IP+UserAgent hash for client identification
-	CookieName                string `json:"cookieName"`                // Name of the cookie
-	CookieMaxAgeSeconds       int    `json:"cookieMaxAgeSeconds"`       // Max age of the cookie in seconds
-	QueueStrategy             string `json:"queueStrategy"`             // Queue strategy: "fifo" (currently only supported)
-	RefreshIntervalSeconds    int    `json:"refreshIntervalSeconds"`    // Refresh interval for queue page (in seconds)
-	Debug                     bool   `json:"debug"`                     // Enable verbose debug logging (overrides LogLevel to debug)
-	MinWaitTimeMinutes        int    `json:"minWaitTimeMinutes"`        // Minimum wait time to show users (in minutes)
-	LogFile                   string `json:"logFile"`                   // Optional: Path to a log file. Default is stderr.
-	LogLevel                  string `json:"logLevel"`                  // Logging level: "debug", "info", "warn", "error"
+	Enabled                  bool   `json:"enabled"`                  // Enable/disable the queue manager
+	QueuePageFile            string `json:"queuePageFile"`            // Path to queue page HTML template
+	InactivityTimeoutSeconds int    `json:"inactivityTimeoutSeconds"` // How long an inactive session is valid for (in seconds)
+	HardSessionLimitSeconds  int    `json:"hardSessionLimitSeconds"`  // Optional: Absolute max time for an active session (seconds), 0 to disable
+	CleanupIntervalSeconds   int    `json:"cleanupIntervalSeconds"`   // How often to run cleanup logic (in seconds)
+	MaxEntries               int    `json:"maxEntries"`               // Maximum concurrent users
+	HTTPResponseCode         int    `json:"httpResponseCode"`         // HTTP response code for queue page
+	HTTPContentType          string `json:"httpContentType"`          // Content type of queue page
+	UseCookies               bool   `json:"useCookies"`               // Use cookies or IP+UserAgent hash for client identification
+	CookieName               string `json:"cookieName"`               // Name of the cookie
+	CookieMaxAgeSeconds      int    `json:"cookieMaxAgeSeconds"`      // Max age of the cookie in seconds
+	QueueStrategy            string `json:"queueStrategy"`            // Queue strategy: "fifo" (currently only supported)
+	RefreshIntervalSeconds   int    `json:"refreshIntervalSeconds"`   // Refresh interval for queue page (in seconds)
+	Debug                    bool   `json:"debug"`                    // Enable verbose debug logging (overrides LogLevel to debug)
+	MinWaitTimeMinutes       int    `json:"minWaitTimeMinutes"`       // Minimum wait time to show users (in minutes)
+	LogFile                  string `json:"logFile"`                  // Optional: Path to a log file. Default is stderr.
+	LogLevel                 string `json:"logLevel"`                 // Logging level: "debug", "info", "warn", "error"
+	TemplatesDir             string `json:"templatesDir"`
 }
 
 // CreateConfig creates the default plugin configuration.
 func CreateConfig() *Config {
 	return &Config{
-		Enabled:                   true,
-		QueuePageFile:             defaultQueuePageFile,
-		InactivityTimeoutSeconds:  defaultInactivityTimeoutSecs,
-		HardSessionLimitSeconds:   0, // Disabled by default
-		CleanupIntervalSeconds:    defaultCleanupIntervalSecs,
-		MaxEntries:                defaultMaxEntries,
-		HTTPResponseCode:          defaultHTTPResponseCode,
-		HTTPContentType:           defaultHTTPContentType,
-		UseCookies:                defaultUseCookies,
-		CookieName:                defaultCookieName,
-		CookieMaxAgeSeconds:       defaultCookieMaxAgeSecs,
-		QueueStrategy:             defaultQueueStrategy,
-		RefreshIntervalSeconds:    defaultRefreshIntervalSecs,
-		Debug:                     false,
-		MinWaitTimeMinutes:        defaultMinWaitTimeMinutes,
-		LogFile:                   "",
-		LogLevel:                  defaultLogLevel,
+		Enabled:                  true,
+		QueuePageFile:            defaultQueuePageFile,
+		InactivityTimeoutSeconds: defaultInactivityTimeoutSecs,
+		HardSessionLimitSeconds:  0, // Disabled by default
+		CleanupIntervalSeconds:   defaultCleanupIntervalSecs,
+		MaxEntries:               defaultMaxEntries,
+		HTTPResponseCode:         defaultHTTPResponseCode,
+		HTTPContentType:          defaultHTTPContentType,
+		UseCookies:               defaultUseCookies,
+		CookieName:               defaultCookieName,
+		CookieMaxAgeSeconds:      defaultCookieMaxAgeSecs,
+		QueueStrategy:            defaultQueueStrategy,
+		RefreshIntervalSeconds:   defaultRefreshIntervalSecs,
+		Debug:                    false,
+		MinWaitTimeMinutes:       defaultMinWaitTimeMinutes,
+		LogFile:                  "",
+		LogLevel:                 defaultLogLevel,
+		TemplatesDir:             defaultTemplatesDir,
 	}
 }
 
@@ -107,18 +110,18 @@ type QueuePageData struct {
 
 // QueueManager is the main middleware handler struct.
 type QueueManager struct {
-	next    http.Handler
-	name    string
-	config  *Config
-	logger  *log.Logger
-	cache   *SimpleCache // In-memory cache for session data
-	tpl     *template.Template
-	tplLock sync.RWMutex // For thread-safe template parsing/reloading
+	next      http.Handler
+	name      string
+	config    *Config
+	logger    *log.Logger
+	cache     *SimpleCache // In-memory cache for session data
+	templates map[string]*template.Template
+	tplLock   sync.RWMutex // For thread-safe template parsing/reloading
 
 	// Queue and active session management
-	queue            []Session         // FIFO queue of waiting sessions
-	activeSessionIDs map[string]bool   // Set of currently active session IDs (value is always true)
-	mu               sync.RWMutex      // Mutex for thread-safe access to queue and activeSessionIDs
+	queue            []Session       // FIFO queue of waiting sessions
+	activeSessionIDs map[string]bool // Set of currently active session IDs (value is always true)
+	mu               sync.RWMutex    // Mutex for thread-safe access to queue and activeSessionIDs
 
 	// Durations derived from config for convenience
 	inactivityTimeoutDur time.Duration
@@ -152,13 +155,13 @@ func (qm *QueueManager) logf(level string, format string, v ...interface{}) {
 	case "debug":
 		shouldLog = true // Debug logs everything
 	case "info":
-		shouldLog = (level == "info" || level == "warn" || level == "error" || level == "debug") // Info also logs debug if debug is true
+		shouldLog = level == "info" || level == "warn" || level == "error" || level == "debug" // Info also logs debug if debug is true
 	case "warn":
-		shouldLog = (level == "warn" || level == "error")
+		shouldLog = level == "warn" || level == "error"
 	case "error":
-		shouldLog = (level == "error")
+		shouldLog = level == "error"
 	default: // Unknown log level, default to info behavior
-		shouldLog = (level == "info" || level == "warn" || level == "error")
+		shouldLog = level == "info" || level == "warn" || level == "error"
 	}
 	if qm.config.Debug && level != "debug" { // If debug is true, log everything above error as debug too
 		if level == "info" || level == "warn" {
@@ -208,8 +211,8 @@ func New(_ context.Context, next http.Handler, config *Config, name string) (htt
 	qm.cache = NewSimpleCache(qm.inactivityTimeoutDur, cacheInternalCleanupInterval)
 
 	// Attempt to load template during initialization
-	if err := qm.loadTemplate(); err != nil {
-		qm.logf("warn", "Could not load queue page template '%s' during init: %v. Will attempt on first request. Ensure file is accessible.", config.QueuePageFile, err)
+	if err := qm.loadTemplatesFromDir(config.TemplatesDir); err != nil {
+		qm.logf("warn", "Failed to load templates from directory: %v", err)
 	}
 
 	// Start periodic cleanup goroutine
@@ -263,38 +266,80 @@ func setupLogOutput(config *Config) (io.Writer, *os.File) {
 	return logOutput, fileHandle
 }
 
-// loadTemplate reads and parses the HTML template file.
-func (qm *QueueManager) loadTemplate() error {
+// loadTemplatesFromDir load all templates in public dir
+func (qm *QueueManager) loadTemplatesFromDir(dir string) error {
 	qm.tplLock.Lock()
 	defer qm.tplLock.Unlock()
 
-	if !fileExists(qm.config.QueuePageFile) {
-		qm.tpl = nil // Ensure template is nil if file doesn't exist
-		return fmt.Errorf("template file not found: %s", qm.config.QueuePageFile)
-	}
-
-	content, err := os.ReadFile(qm.config.QueuePageFile)
+	files, err := os.ReadDir(dir)
 	if err != nil {
-		qm.tpl = nil
-		return fmt.Errorf("error reading template file '%s': %w", qm.config.QueuePageFile, err)
+		return fmt.Errorf("could not read templates directory: %w", err)
 	}
 
-	newTpl, parseErr := template.New("QueuePage").Delims("[[", "]]").Parse(string(content))
-	if parseErr != nil {
-		qm.tpl = nil
-		return fmt.Errorf("error parsing template '%s': %w", qm.config.QueuePageFile, parseErr)
+	qm.templates = make(map[string]*template.Template)
+	count := 0
+
+	for _, file := range files {
+		name := file.Name()
+		if file.IsDir() || !strings.HasPrefix(name, "queue-page.") || !strings.HasSuffix(name, ".html") {
+			continue
+		}
+
+		path := fmt.Sprintf("%s/%s", dir, name)
+		content, err := os.ReadFile(path)
+		if err != nil {
+			qm.logf("warn", "Failed to read template file '%s': %v", path, err)
+			continue
+		}
+
+		tpl, err := template.New(name).Delims("[[", "]]").Parse(string(content))
+		if err != nil {
+			qm.logf("warn", "Failed to parse template '%s': %v", path, err)
+			continue
+		}
+
+		// Extract ISO code from file name
+		langCode := strings.TrimSuffix(strings.TrimPrefix(name, "queue-page."), ".html")
+		qm.templates[langCode] = tpl
+		count++
 	}
 
-	qm.tpl = newTpl
-	qm.logf("info", "Successfully loaded/reloaded queue page template: %s", qm.config.QueuePageFile)
+	if count == 0 {
+		return fmt.Errorf("no valid templates found in %s", dir)
+	}
+
+	qm.logf("info", "Loaded %d languages queue page templates from %s", count, dir)
 	return nil
 }
 
-// getTemplate safely retrieves the current parsed template.
-func (qm *QueueManager) getTemplate() *template.Template {
+// getTemplateForRequest return corresponding template based on user agent, otherwise send "en" one.
+func (qm *QueueManager) getTemplateForRequest(req *http.Request) *template.Template {
 	qm.tplLock.RLock()
 	defer qm.tplLock.RUnlock()
-	return qm.tpl
+
+	acceptLang := req.Header.Get("Accept-Language")
+	if acceptLang != "" {
+		parts := strings.Split(acceptLang, ",")
+		if len(parts) > 0 {
+			lang := strings.ToLower(strings.TrimSpace(parts[0]))
+			if len(lang) >= 2 {
+				lang = lang[:2]
+				if tpl, ok := qm.templates[lang]; ok {
+					qm.logf("debug", "Using template for language '%s'", lang)
+					return tpl
+				}
+			}
+		}
+	}
+
+	// fallback
+	if tpl, ok := qm.templates["en"]; ok {
+		return tpl
+	}
+	for _, tpl := range qm.templates {
+		return tpl // fallback au premier trouvé
+	}
+	return nil
 }
 
 // startCleanupRoutine initializes and starts the periodic cleanup task.
@@ -414,7 +459,7 @@ func (qm *QueueManager) enqueueOrUpdateClient(clientID string) int {
 			// Update LastSeenAt for the existing queue entry (via cache)
 			if sessionData, found := qm.getSessionFromCache(clientID); found {
 				qm.updateClientActivityInCache(clientID, sessionData) // Updates cache
-				qm.queue[i].LastSeenAt = time.Now()                  // Also update in-memory queue representation
+				qm.queue[i].LastSeenAt = time.Now()                   // Also update in-memory queue representation
 			} else {
 				// Session not in cache, but in queue? This is inconsistent. Re-add to cache.
 				qm.logf("warn", "Client %s in queue but not in cache. Re-caching.", clientID)
@@ -490,7 +535,7 @@ func (qm *QueueManager) getClientID(rw http.ResponseWriter, req *http.Request) (
 			Value:    newID,
 			Path:     "/", // Cookie accessible for all paths
 			MaxAge:   qm.config.CookieMaxAgeSeconds,
-			HttpOnly: true,   // Prevent client-side script access
+			HttpOnly: true,           // Prevent client-side script access
 			Secure:   req.TLS != nil, // Set Secure flag only if connection is HTTPS
 			SameSite: http.SameSiteLaxMode,
 		})
@@ -589,26 +634,21 @@ func (qm *QueueManager) serveQueuePage(rw http.ResponseWriter, req *http.Request
 	rw.Header().Set("Pragma", "no-cache")
 	rw.Header().Set("Expires", "Thu, 01 Jan 1970 00:00:00 GMT") // Classic "don't cache"
 
-	currentTpl := qm.getTemplate()
+	currentTpl := qm.getTemplateForRequest(req)
 	if currentTpl == nil {
-		// Attempt to reload template if it was nil (e.g., initial load failed or file changed)
-		qm.logf("debug", "Queue page template is nil, attempting to reload from: %s", qm.config.QueuePageFile)
-		if err := qm.loadTemplate(); err != nil {
-			qm.logf("warn", "Failed to load template '%s' on demand: %v. Serving fallback.", qm.config.QueuePageFile, err)
-		}
-		currentTpl = qm.getTemplate() // Get again after attempting load
+		qm.logf("warn", "No suitable template found for language header, serving fallback.")
+		qm.serveFallbackTemplate(rw, pageData)
+		return
 	}
 
-	if currentTpl != nil {
-		rw.Header().Set("Content-Type", qm.config.HTTPContentType)
-		rw.WriteHeader(qm.config.HTTPResponseCode)
-		if err := currentTpl.Execute(rw, pageData); err != nil {
-			qm.logf("error", "Error executing custom queue page template: %v. Serving fallback.", err)
-			// Fall through to serve fallback template if execution fails
-		} else {
-			qm.logf("debug", "Served custom queue page to client. Position (1-based): %d", pageData.Position)
-			return // Successfully served custom template
-		}
+	rw.Header().Set("Content-Type", qm.config.HTTPContentType)
+	rw.WriteHeader(qm.config.HTTPResponseCode)
+	if err := currentTpl.Execute(rw, pageData); err != nil {
+		qm.logf("error", "Error executing custom queue page template: %v. Serving fallback.", err)
+		// Fall through to serve fallback template if execution fails
+	} else {
+		qm.logf("debug", "Served custom queue page to client. Position (1-based): %d", pageData.Position)
+		return // Successfully served custom template
 	}
 
 	// Fallback to default internal template if custom template is not available or failed
@@ -626,7 +666,7 @@ func (qm *QueueManager) prepareQueuePageData(positionInQueue int) QueuePageData 
 	// Estimated wait time logic (simplified: 0.3 to 0.7 minutes per person ahead)
 	// This can be made more sophisticated if average service time is known.
 	// Using a slightly variable factor to make it seem less static.
-	waitFactor := 0.3 + (float64(positionInQueue%5) * 0.08) // Varies between 0.3 and 0.62
+	waitFactor := 0.3 + (float64(positionInQueue%5) * 0.08)   // Varies between 0.3 and 0.62
 	rawEstimatedTime := float64(positionInQueue) * waitFactor // positionInQueue is 0-based here
 
 	estimatedWaitTime := int(math.Max(float64(qm.config.MinWaitTimeMinutes), math.Ceil(rawEstimatedTime)))
@@ -700,8 +740,11 @@ func (qm *QueueManager) serveFallbackTemplate(rw http.ResponseWriter, data Queue
 		qm.logf("error", "Error executing fallback queue page template: %v", execErr)
 		// Ultimate fallback to plain text if template execution fails
 		rw.Header().Set("Content-Type", "text/plain; charset=utf-8") // Ensure plain text
-		fmt.Fprintf(rw, "You are %d of %d in queue. Estimated wait: ~%d min(s). Page will refresh in %d seconds.",
+		_, err := fmt.Fprintf(rw, "You are %d of %d in queue. Estimated wait: ~%d min(s). Page will refresh in %d seconds.",
 			data.Position, data.QueueSize, data.EstimatedWaitTime, data.RefreshInterval)
+		if err != nil {
+			qm.logf("debug", "Error executing fallback queue page template: %v", err)
+		}
 	}
 }
 
@@ -823,7 +866,7 @@ func (qm *QueueManager) dequeueClientUnderLock(clientID string) {
 		// Remove the element by slicing: qm.queue = append(qm.queue[:foundIndex], qm.queue[foundIndex+1:]...)
 		// More explicit copy for clarity if needed, but above is idiomatic.
 		copy(qm.queue[foundIndex:], qm.queue[foundIndex+1:]) // Shift elements left
-		qm.queue = qm.queue[:len(qm.queue)-1]             // Truncate slice
+		qm.queue = qm.queue[:len(qm.queue)-1]                // Truncate slice
 
 		qm.logf("debug", "Client %s dequeued (under lock).", clientID)
 

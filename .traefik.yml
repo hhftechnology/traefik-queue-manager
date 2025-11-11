@@ -8,6 +8,6 @@ testData:
   enabled: true
   maxEntries: 100
   sessionTime: 1m
-  queuePageFile: queue-page.html
+  queuePageFile: queue-page.en.html
   useCookies: true
   cookieName: queue-manager-id

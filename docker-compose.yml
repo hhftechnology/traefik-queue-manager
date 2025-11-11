@@ -1,10 +1,6 @@
-# docker-compose.yml
-version: "3.6"
-
 services:
   traefik:
-    image: traefik:v3.3.4
-    container_name: traefik
+    image: traefik:v3.6
     command:
       - --log.level=INFO
       - --api
@@ -21,10 +17,23 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - ./:/plugins-local/src/github.com/hhftechnology/traefik-queue-manager
+      - ./public:/var/queue-templates
+
+  whoami:
+    image: traefik/whoami
+    depends_on:
+      - traefik
+    networks:
+      - traefik-network
     labels:
+      - traefik.enable=true
+      - traefik.http.routers.whoami.rule=Host(`localhost`)
+      - traefik.http.routers.whoami.entrypoints=web
+      - traefik.http.routers.whoami.service=whoami-service
+      - traefik.http.services.whoami-service.loadbalancer.server.port=80
+      - traefik.http.routers.whoami.middlewares=queuemanager
       - traefik.http.middlewares.queuemanager.plugin.queuemanager.enabled=true
-      - traefik.http.middlewares.queuemanager.plugin.queuemanager.queuePageFile=/plugins-local/src/github.com/hhftechnology/traefik-queue-manager/queue-page.html
-      - traefik.http.middlewares.queuemanager.plugin.queuemanager.maxEntries=5
+      - traefik.http.middlewares.queuemanager.plugin.queuemanager.maxEntries=1
       - traefik.http.middlewares.queuemanager.plugin.queuemanager.sessionTime=1m
       - traefik.http.middlewares.queuemanager.plugin.queuemanager.purgeTime=5m
       - traefik.http.middlewares.queuemanager.plugin.queuemanager.useCookies=true
@@ -32,22 +41,27 @@ services:
       - traefik.http.middlewares.queuemanager.plugin.queuemanager.refreshInterval=30
       - traefik.http.middlewares.queuemanager.plugin.queuemanager.debug=true
 
-  whoami:
-    image: traefik/whoami
-    container_name: whoami-service
+  nginx:
+    image: nginx
     depends_on:
       - traefik
     networks:
       - traefik-network
-    deploy:
-      replicas: 3
     labels:
       - traefik.enable=true
-      - traefik.http.routers.whoami.rule=Host(`whoami.local`)
-      - traefik.http.routers.whoami.entrypoints=web
-      - traefik.http.routers.whoami.service=whoami-service
-      - traefik.http.services.whoami-service.loadbalancer.server.port=80
-      - traefik.http.routers.whoami.middlewares=queuemanager
+      - traefik.http.routers.service2.rule=Host(`127.0.0.1`)
+      - traefik.http.routers.service2.entrypoints=web
+      - traefik.http.routers.service2.service=nginx-service
+      - traefik.http.services.nginx-service.loadbalancer.server.port=80
+      - traefik.http.routers.service2.middlewares=queuemanager2
+      - traefik.http.middlewares.queuemanager2.plugin.queuemanager.enabled=true
+      - traefik.http.middlewares.queuemanager2.plugin.queuemanager.maxEntries=2
+      - traefik.http.middlewares.queuemanager2.plugin.queuemanager.sessionTime=1m
+      - traefik.http.middlewares.queuemanager2.plugin.queuemanager.purgeTime=5m
+      - traefik.http.middlewares.queuemanager2.plugin.queuemanager.useCookies=true
+      - traefik.http.middlewares.queuemanager2.plugin.queuemanager.cookieName=queue-manager-id
+      - traefik.http.middlewares.queuemanager2.plugin.queuemanager.refreshInterval=30
+      - traefik.http.middlewares.queuemanager2.plugin.queuemanager.debug=true
 
 networks:
   traefik-network:
