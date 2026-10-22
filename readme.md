@@ -47,6 +47,8 @@ The plugin uses a client identifier (cookie or IP+UserAgent hash) to track visit
 
 ```yaml
 # Static configuration
+
+[![Discuss on the HHF forum](https://img.shields.io/badge/discuss-forum.hhf.technology-AD1457?logo=discourse&logoColor=white)](https://forum.hhf.technology/c/traefik-plugins-tools/traefik-queue-manager)
 experimental:
   plugins:
     traefik-queue-manager:
